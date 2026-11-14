@@ -1,0 +1,5 @@
+# Code owners are automatically requested for review on pull requests.
+# https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# TODO: add team members as the team grows.
+
+*   @mos26613
