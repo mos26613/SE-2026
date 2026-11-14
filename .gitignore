@@ -1,0 +1,42 @@
+# Language-specific rules will be added once the tech stack is chosen.
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+secrets.*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors and IDEs
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Build output and dependencies (generic)
+build/
+dist/
+out/
+bin/
+obj/
+node_modules/
+__pycache__/
+.venv/
+venv/
+coverage/
