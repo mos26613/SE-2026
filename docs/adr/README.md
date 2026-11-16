@@ -16,3 +16,5 @@ ADRs are never deleted. If a decision changes, write a new ADR and mark the old 
 | # | Title | Status |
 |---|---|---|
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
+| [0002](0002-technology-stack.md) | Technology stack | Accepted |
+| [0003](0003-anonymize-pii-before-ai.md) | Anonymize personal data before sending it to the AI | Accepted |
