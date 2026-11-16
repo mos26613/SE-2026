@@ -83,7 +83,7 @@ Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), usin
 | [Epic 1](https://dev.azure.com/mogrossm/_workitems/edit/7) | Infrastructure, Database & Authentication | Elkana Drin |
 | [Epic 2](https://dev.azure.com/mogrossm/_workitems/edit/8) | Moodle Scraping & Extension Core | Shoham Kaminetzky |
 | [Epic 3](https://dev.azure.com/mogrossm/_workitems/edit/9) | Backend Sync & Moodle Integration | Benaya Birnbaum |
-| [Epic 4](https://dev.azure.com/mogrossm/_workitems/edit/10) | User Interface, Dashboard & Time Management | Shoham Kaminetzky |
+| [Epic 4](https://dev.azure.com/mogrossm/_workitems/edit/10) | User Interface, Dashboard & Time Management | Moshe Grossman |
 | [Epic 5](https://dev.azure.com/mogrossm/_workitems/edit/6) | AI Layer & Academic Automation | Moshe Grossman |
 
 Prototype: [academic-task-manager.ai.studio](https://academic-task-manager.ai.studio/)
@@ -157,8 +157,8 @@ In short: pick a work item in Azure Boards, branch from `main`, make small focus
 |---|---|
 | Elkana Drin | Team Lead & Architecture: Supabase Auth, row-level security, DevOps |
 | Benaya Birnbaum | Backend & Database Lead: FastAPI, sync algorithms, caching |
-| Moshe Grossman | AI Integration & Logic Lead: Gemini API, PII anonymization, function calling, Appeal Assistant |
-| Shoham Kaminetzky | Frontend & Chrome Extension Lead: Moodle page scraping, React dashboard |
+| Moshe Grossman | AI Integration & Frontend Lead: Gemini API, PII anonymization, function calling, Appeal Assistant, React dashboard |
+| Shoham Kaminetzky | Chrome Extension Lead: Manifest V3 extension, background sync, Moodle page scraping, session/cookie handling |
 
 ## License
 
