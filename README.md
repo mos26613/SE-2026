@@ -1,13 +1,19 @@
-# SE-2026
+# Smart Student Task Hub
 
-> **Status:** 🚧 Project setup. The repository foundations are in place and implementation has not started yet.
+> **Status:** 🚧 Phase A–B (initiation and backlog) is complete. Implementation starts in Sprint 1. There is no application code in the repository yet.
 
-<!-- TODO: Replace with a one-paragraph description of the project: what it is, who it is for, and the problem it solves. -->
-_A short description of the project goes here._
+**Smart Student Task Hub** (Azure DevOps project: *Academic Task Manager & AI Assistant*) brings every assignment, quiz and deadline from a student's Moodle courses into one dashboard.
+
+A Chrome extension quietly collects tasks while the student browses Moodle. A FastAPI backend stores them in Supabase. A React dashboard shows them in date order with countdown timers and flags deadlines the lecturer has changed. An AI assistant built on Google Gemini answers questions about the student's tasks, creates reminders, and drafts formal grade appeals. Personal details are removed on the server before anything is sent to the AI.
+
+Developed by the **MASHAB** team as the Software Engineering course project (SE-2026).
 
 ## Table of contents
 
-- [About](#about)
+- [The problem](#the-problem)
+- [Key features](#key-features)
+- [Tech stack](#tech-stack)
+- [Architecture at a glance](#architecture-at-a-glance)
 - [Project management](#project-management)
 - [Repository structure](#repository-structure)
 - [Getting started](#getting-started)
@@ -16,26 +22,75 @@ _A short description of the project goes here._
 - [Team](#team)
 - [License](#license)
 
-## About
+## The problem
 
-| | |
+Students juggle many courses whose assignments are spread across several Moodle sites. Lecturers move deadlines or post announcements without any central notification. Moodle has no single date-ordered view and no countdowns. The result is missed deadlines and unnecessary stress.
+
+## Key features
+
+| Area | What it does |
 |---|---|
-| **Goal** | _TODO: main objective of the project_ |
-| **Users** | _TODO: who will use it_ |
-| **Scope** | _TODO: what is in scope and out of scope for this release_ |
-| **Tech stack** | _TODO: decided in an ADR under [`docs/adr/`](docs/adr/)_ |
+| **Automatic Moodle sync** | A Chrome extension (Manifest V3) reads assignments from Moodle pages in the background, using the student's own logged-in session. No Moodle password is ever sent to or stored on our server. |
+| **Unified dashboard** | All tasks from every course in date order, with live countdown timers, summary widgets (due today / this week / overdue), search, course filters and a semester calendar view. Loads in under 3 seconds. |
+| **"Recently Modified" alerts** | When a lecturer changes or postpones a deadline, the task gets a red badge until the student has seen it. |
+| **AI assistant** | A chat that answers questions about the student's real tasks and creates reminders from free text such as *"Add a quiz for Thursday at 20:00"* (using Gemini function calling). |
+| **AI Appeal Assistant** | Turns the grader's comments and the student's answer into a formal appeal letter in under 5 seconds, ready to edit and copy. |
+| **Google Calendar export** | Export one deadline or all upcoming deadlines to Google Calendar, kept in sync when Moodle changes. |
+| **Privacy by design** | Strict data separation between users (row-level security), and removal of names, ID numbers and emails before any request to the AI. |
+
+**Scope:** the system only **reads** from Moodle. It never submits assignments or changes grades.
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Data collection | Chrome Extension, Manifest V3 (service worker plus content scripts that read Moodle pages) |
+| Frontend | React |
+| Backend | Python, FastAPI |
+| Database and auth | Supabase: PostgreSQL with row-level security, Supabase Auth with JWT |
+| AI | Google AI Studio / Gemini API (system instructions, function calling) |
+| Integrations | Google Calendar API |
+| Infrastructure | Docker / Docker Compose, GitHub Actions for CI/CD |
+| Testing | Pytest, Playwright / Selenium |
+
+The reasons for these choices are in [ADR 0002](docs/adr/0002-technology-stack.md).
+
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    Moodle[(Moodle portal)] -- "page data, read passively" --> Ext[Chrome extension]
+    Ext -- "REST over HTTPS + JWT" --> API[FastAPI backend<br/>in Docker]
+    UI[React dashboard] -- "REST over HTTPS + JWT" --> API
+    API -- "SQL with row-level security" --> DB[(Supabase<br/>PostgreSQL + Auth)]
+    API -- "anonymized prompts" --> AI[Google Gemini API]
+    API -- "OAuth2 event export" --> Cal[Google Calendar API]
+```
+
+The full description is in [docs/architecture.md](docs/architecture.md).
 
 ## Project management
 
-Planning and tracking happen in **Azure DevOps (Azure Boards)**. GitHub holds the source code and documentation.
+Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), using the **Scrum** process. GitHub holds the source code and the documentation.
 
-- **Work items** (epics, features, user stories, tasks, bugs) are in Azure Boards.
-- **Linking:** put `AB#<id>` in a commit message or pull request description to link it to the matching Azure Boards work item, for example `AB#42`. This needs the [Azure Boards app for GitHub](https://learn.microsoft.com/azure/devops/boards/github/) to be installed.
-- **GitHub Issues** are used for anything raised directly on GitHub. Templates are in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/).
+- **Backlog:** 5 epics, 20 features, 80 user stories and their tasks, organized by the five subsystems below.
+- **Sprints:** one-week sprints. Sprint 1 runs from 12 to 19 October 2026.
+- **Wiki:** the Project Initiation Document, the context diagram, user scenarios and the AI Studio prototype live in the Azure DevOps wiki.
+- **Linking:** put `AB#<id>` in a commit message or pull request description to link it to an Azure Boards work item, for example `AB#183`. This needs the [Azure Boards app for GitHub](https://learn.microsoft.com/azure/devops/boards/github/).
 
-<!-- TODO: Add the link to the Azure DevOps project board. -->
+| Epic | Subsystem | Lead |
+|---|---|---|
+| [Epic 1](https://dev.azure.com/mogrossm/_workitems/edit/7) | Infrastructure, Database & Authentication | Elkana Drin |
+| [Epic 2](https://dev.azure.com/mogrossm/_workitems/edit/8) | Moodle Scraping & Extension Core | Shoham Kaminetzky |
+| [Epic 3](https://dev.azure.com/mogrossm/_workitems/edit/9) | Backend Sync & Moodle Integration | Benaya Birnbaum |
+| [Epic 4](https://dev.azure.com/mogrossm/_workitems/edit/10) | User Interface, Dashboard & Time Management | Shoham Kaminetzky |
+| [Epic 5](https://dev.azure.com/mogrossm/_workitems/edit/6) | AI Layer & Academic Automation | Moshe Grossman |
+
+Prototype: [academic-task-manager.ai.studio](https://academic-task-manager.ai.studio/)
 
 ## Repository structure
+
+Current:
 
 ```
 .
@@ -44,20 +99,38 @@ Planning and tracking happen in **Azure DevOps (Azure Boards)**. GitHub holds th
 │   ├── adr/                # Architecture Decision Records
 │   ├── architecture.md     # System overview
 │   └── requirements.md     # Functional and non-functional requirements
-├── .editorconfig           # Shared editor settings
-├── .gitattributes          # Line-ending and file-type rules
-├── .gitignore              # Files Git should ignore
+├── .editorconfig
+├── .gitattributes
+├── .gitignore
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md         # How to contribute (branches, commits, PRs)
-├── SECURITY.md             # How to report vulnerabilities
+├── SECURITY.md
 └── README.md
 ```
 
-Source code and test folders will be added once the tech stack is chosen.
+Planned folders, to be added as each subsystem starts:
+
+| Folder | Contents | Epic |
+|---|---|---|
+| `extension/` | Chrome extension (Manifest V3) | 2 |
+| `backend/` | FastAPI server, sync logic, AI gateway | 3, 5 |
+| `frontend/` | React dashboard | 4 |
+| `supabase/` | Database migrations and row-level security policies | 1 |
+| `tests/` | Integration and end-to-end tests (Playwright / Selenium) | all |
+| `docker-compose.yml` | Local development environment | 1 |
 
 ## Getting started
 
-_No code yet. This section will cover prerequisites, installation, configuration and how to run the project and its tests._
+_No code yet. Setup instructions will be added with the first Sprint 1 deliverables (User Story 1.4.1, Docker Compose environment)._
+
+Expected prerequisites:
+
+- Git
+- Docker Desktop
+- Node.js (LTS) for the React dashboard and the extension build
+- Python 3.12+ for the backend
+- Google Chrome, for loading the extension
+- A Supabase project and a Google AI Studio API key (supplied through environment variables, never committed)
 
 ```bash
 git clone https://github.com/mos26613/SE-2026.git
@@ -66,23 +139,27 @@ cd SE-2026
 
 ## Development workflow
 
-In short: branch from `main`, make small focused commits, open a pull request, get a review, merge. The full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
+In short: pick a work item in Azure Boards, branch from `main`, make small focused commits that reference `AB#<id>`, open a pull request, get a review, merge. The full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation
 
 | Document | Purpose |
 |---|---|
-| [docs/requirements.md](docs/requirements.md) | What the system must do |
-| [docs/architecture.md](docs/architecture.md) | How the system is structured |
+| [docs/requirements.md](docs/requirements.md) | What the system must do: features, user scenarios, NFRs |
+| [docs/architecture.md](docs/architecture.md) | How the system is structured: components, data, security |
 | [docs/adr/](docs/adr/) | Why key technical decisions were made |
 
 ## Team
 
-<!-- TODO: Fill in team members and roles. -->
-| Name | Role | GitHub |
-|---|---|---|
-| _TBD_ | _TBD_ | _TBD_ |
+**MASHAB Systems**
+
+| Name | Role |
+|---|---|
+| Elkana Drin | Team Lead & Architecture: Supabase Auth, row-level security, DevOps |
+| Benaya Birnbaum | Backend & Database Lead: FastAPI, sync algorithms, caching |
+| Moshe Grossman | AI Integration & Logic Lead: Gemini API, PII anonymization, function calling, Appeal Assistant |
+| Shoham Kaminetzky | Frontend & Chrome Extension Lead: Moodle page scraping, React dashboard |
 
 ## License
 
-_TODO: Choose a license (for example MIT) and add a `LICENSE` file. Until then, all rights are reserved by the authors._
+_TODO: The team still has to choose a license (for example MIT) and add a `LICENSE` file. Until then, all rights are reserved by the authors._

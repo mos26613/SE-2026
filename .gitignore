@@ -40,3 +40,28 @@ __pycache__/
 .venv/
 venv/
 coverage/
+
+# Python (backend)
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node / React / extension
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.vite/
+*.crx
+*.zip
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# Playwright
+test-results/
+playwright-report/

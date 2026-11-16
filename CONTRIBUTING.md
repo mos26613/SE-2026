@@ -1,11 +1,13 @@
 # Contributing
 
-Thanks for contributing to SE-2026. This guide explains how we work.
+Thanks for contributing to **Smart Student Task Hub** (SE-2026). This guide explains how the MASHAB team works.
+
+We follow **Scrum** in Azure DevOps (organization `mogrossm`): one-week sprints with sprint planning, a daily scrum, a review and a retrospective. The backlog is organized as Epic → Feature → User Story → Task.
 
 ## Before you start
 
-1. Check that there is a work item in **Azure Boards** (or a GitHub issue) for the change. If there isn't, create one.
-2. Assign it to yourself and move it to **Active / In Progress**.
+1. Find the **User Story** or **Task** in Azure Boards for the change, in the current sprint. If there isn't one, create it under the right Feature and Epic.
+2. Assign it to yourself and move it to **In Progress** (Committed).
 
 ## Branches
 
@@ -22,7 +24,7 @@ Name branches `<type>/<work-item-id>-<short-description>`:
 | `refactor/` | Code changes that don't change behaviour |
 | `test/` | Adding or improving tests |
 
-Example: `feature/42-user-login`
+Example: `feature/188-sign-in-jwt` (User Story 1.1.2, AB#188)
 
 ## Commits
 
@@ -37,15 +39,16 @@ AB#<work-item-id>
 ```
 
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `ci`.
+- Suggested scopes: `extension`, `backend`, `frontend`, `db`, `ai`, `infra`, `docs`.
 - Keep the summary under ~72 characters and in the imperative mood ("add", not "added").
 - `AB#<id>` links the commit to the Azure Boards work item.
 
 Example:
 
 ```
-feat(auth): add login form validation
+feat(auth): issue JWT on student sign-in
 
-AB#42
+AB#188
 ```
 
 ## Pull requests
