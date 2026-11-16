@@ -74,7 +74,7 @@ The full description is in [docs/architecture.md](docs/architecture.md).
 Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), using the **Scrum** process. GitHub holds the source code and the documentation.
 
 - **Backlog:** 5 epics, 20 features, 80 user stories and their tasks, organized by the five subsystems below.
-- **Sprints:** one-week sprints. Sprint 1 runs from 12 to 19 October 2026.
+- **Sprints:** implementation is planned as three one-week sprints. Dates will be set when implementation starts.
 - **Wiki:** the Project Initiation Document, the context diagram, user scenarios and the AI Studio prototype live in the Azure DevOps wiki.
 - **Linking:** put `AB#<id>` in a commit message or pull request description to link it to an Azure Boards work item, for example `AB#183`. This needs the [Azure Boards app for GitHub](https://learn.microsoft.com/azure/devops/boards/github/).
 
@@ -83,7 +83,7 @@ Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), usin
 | [Epic 1](https://dev.azure.com/mogrossm/_workitems/edit/7) | Infrastructure, Database & Authentication | Elkana Drin |
 | [Epic 2](https://dev.azure.com/mogrossm/_workitems/edit/8) | Moodle Scraping & Extension Core | Shoham Kaminetzky |
 | [Epic 3](https://dev.azure.com/mogrossm/_workitems/edit/9) | Backend Sync & Moodle Integration | Benaya Birnbaum |
-| [Epic 4](https://dev.azure.com/mogrossm/_workitems/edit/10) | User Interface, Dashboard & Time Management | Moshe Grossman |
+| [Epic 4](https://dev.azure.com/mogrossm/_workitems/edit/10) | User Interface, Dashboard & Time Management | Moshe Grossman (with Shoham Kaminetzky) |
 | [Epic 5](https://dev.azure.com/mogrossm/_workitems/edit/6) | AI Layer & Academic Automation | Moshe Grossman |
 
 Prototype: [academic-task-manager.ai.studio](https://academic-task-manager.ai.studio/)
@@ -157,8 +157,8 @@ In short: pick a work item in Azure Boards, branch from `main`, make small focus
 |---|---|
 | Elkana Drin | Team Lead & Architecture: Supabase Auth, row-level security, DevOps |
 | Benaya Birnbaum | Backend & Database Lead: FastAPI, sync algorithms, caching |
-| Moshe Grossman | AI Integration & Frontend Lead: Gemini API, PII anonymization, function calling, Appeal Assistant, React dashboard |
-| Shoham Kaminetzky | Chrome Extension Lead: Manifest V3 extension, background sync, Moodle page scraping, session/cookie handling |
+| Moshe Grossman | AI Integration & Frontend Lead: Gemini API, PII anonymization, function calling, Appeal Assistant; lead for the React dashboard |
+| Shoham Kaminetzky | Chrome Extension Lead: Manifest V3 extension, background sync, Moodle page scraping, session/cookie handling; supports the React dashboard |
 
 ## License
 

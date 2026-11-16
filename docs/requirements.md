@@ -43,7 +43,7 @@ Give university students one place to see every Moodle assignment and deadline, 
 |---|---|---|
 | 1.1 (AB#179) | User authentication and identity management | Registration, sign-in with JWT, password reset, auth middleware latency (NFR) |
 | 1.2 (AB#180) | Core database schema in PostgreSQL | Users/Courses/Tasks schema, indexing for fast queries, migrations, connection pooling (NFR) |
-| 1.3 (AB#181) | Information security and row-level security | Multi-tenant row-level security (NFR), secrets management, CORS and rate limiting, anonymization standards |
+| 1.3 (AB#181) | Information security and row-level security | Multi-tenant row-level security (NFR), secrets management, CORS and rate limiting, anonymization standards for the user data we collect and store |
 | 1.4 (AB#182) | Docker, CI/CD and infrastructure | Docker Compose dev environment, GitHub Actions quality gates, multi-stage production build, PR review rules |
 
 ### Epic 2: Moodle Scraping & Extension Core (AB#8)
@@ -78,7 +78,7 @@ Give university students one place to see every Moodle assignment and deadline, 
 | Feature | Description | User stories |
 |---|---|---|
 | 5.1 (AB#15) | Gemini API connection and AI gateway | Central AI gateway, rate limits and quotas, graceful error handling, versioned system prompts |
-| 5.2 (AB#16) | Strict PII anonymization before AI calls | Remove ID numbers, remove names and emails, mandatory anonymization middleware, restore personal details locally in responses |
+| 5.2 (AB#16) | Strict PII anonymization before AI calls | Remove ID numbers, names and emails from files and text the student uploads to the AI; mandatory anonymization middleware; restore personal details locally in responses |
 | 5.3 (AB#17) | Chat agent with function calling | Chat window, answers grounded in real task data, reminders and events from free text, stays in scope and resists misuse |
 | 5.4 (AB#18) | AI Appeal Assistant | Submit grader comments and the student's answer, generate a formal letter, within 5 seconds, edit and copy |
 
@@ -101,7 +101,8 @@ Give university students one place to see every Moodle assignment and deadline, 
 | NFR-3 | Performance | Database task queries respond in **under 100 ms** | AB#211 |
 | NFR-4 | Performance | Appeal letter generated in **under 5 seconds** | AB#49 |
 | NFR-5 | Security | Each user can access only their own rows, enforced by row-level security (`auth.uid() = user_id`) | AB#226 |
-| NFR-6 | Privacy | No personal data (names, ID numbers, emails) is sent to the AI; anonymization is mandatory middleware | AB#41 |
+| NFR-6 | Privacy | No personal data (names, ID numbers, emails) from files or text the student uploads is sent to the AI; anonymization is mandatory middleware | AB#41 |
+| NFR-6a | Privacy | User data the system collects and stores is protected according to the project's anonymization standards (separate from NFR-6) | AB#241 |
 | NFR-7 | Security | Moodle passwords are never stored on or sent to the server; secrets come only from environment variables | AB#231 |
 | NFR-8 | Reliability | Database connection pooling, timeouts and retries | AB#221, AB#397 |
 | NFR-9 | Load on Moodle | Debounced/throttled syncing and caching, to avoid putting load on institutional servers | AB#313, AB#318 |
