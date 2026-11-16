@@ -71,7 +71,7 @@ The full description is in [docs/architecture.md](docs/architecture.md).
 
 ## Project management
 
-Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), using the **Scrum** process. GitHub holds the source code and the documentation.
+Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), using the **Agile** process template and working in Scrum-style sprints. GitHub holds the source code and the documentation.
 
 - **Backlog:** 5 epics, 20 features, 80 user stories and their tasks, organized by the five subsystems below.
 - **Sprints:** implementation is planned as three one-week sprints. Dates will be set when implementation starts.
