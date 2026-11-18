@@ -37,7 +37,7 @@ Give university students one place to see every Moodle assignment and deadline, 
 
 ## 4. Functional requirements (by epic and feature)
 
-### Epic 1: Infrastructure, Database & Authentication (AB#7)
+### Epic 1: Infrastructure, Database & Authentication (AB#464)
 
 | Feature | Description | User stories |
 |---|---|---|
