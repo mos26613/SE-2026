@@ -95,10 +95,20 @@ Current:
 ```
 .
 ├── .github/                # Issue and PR templates, code owners
+├── backend/                # FastAPI server (Docker): sync logic, AI gateway
+│   ├── app/main.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/               # Dashboard (placeholder Node server; React comes in Epic 4)
+│   ├── Dockerfile
+│   ├── package.json
+│   └── server.js
 ├── docs/                   # Project documentation
 │   ├── adr/                # Architecture Decision Records
 │   ├── architecture.md     # System overview
 │   └── requirements.md     # Functional and non-functional requirements
+├── .env.example            # Template for local environment variables
+├── docker-compose.yml      # Local development environment
 ├── .editorconfig
 ├── .gitattributes
 ├── .gitignore
@@ -113,29 +123,33 @@ Planned folders, to be added as each subsystem starts:
 | Folder | Contents | Epic |
 |---|---|---|
 | `extension/` | Chrome extension (Manifest V3) | 2 |
-| `backend/` | FastAPI server, sync logic, AI gateway | 3, 5 |
-| `frontend/` | React dashboard | 4 |
 | `supabase/` | Database migrations and row-level security policies | 1 |
 | `tests/` | Integration and end-to-end tests (Playwright / Selenium) | all |
-| `docker-compose.yml` | Local development environment | 1 |
 
 ## Getting started
 
-_No code yet. Setup instructions will be added with the first Sprint 1 deliverables (User Story 1.4.1, Docker Compose environment)._
-
-Expected prerequisites:
+### Prerequisites
 
 - Git
-- Docker Desktop
-- Node.js (LTS) for the React dashboard and the extension build
-- Python 3.12+ for the backend
-- Google Chrome, for loading the extension
-- A Supabase project and a Google AI Studio API key (supplied through environment variables, never committed)
+- Docker Desktop (includes Docker Compose)
+- Google Chrome, for loading the extension (once it exists)
+
+### Run locally
 
 ```bash
 git clone https://github.com/mos26613/SE-2026.git
 cd SE-2026
+cp .env.example .env        # then fill in your own Supabase values; never commit .env
+docker compose up --build
 ```
+
+| Service | URL |
+|---|---|
+| Backend API | http://localhost:8000 |
+| API documentation (Swagger) | http://localhost:8000/docs |
+| Frontend | http://localhost:3000 |
+
+Stop everything with `docker compose down`. The backend reloads automatically when you edit files in `backend/`.
 
 ## Development workflow
 

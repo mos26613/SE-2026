@@ -1,4 +1,0 @@
-.env
-_pycache_/ 
-node_modules/ 
-.pytest_cache/
