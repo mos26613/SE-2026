@@ -71,19 +71,19 @@ The full description is in [docs/architecture.md](docs/architecture.md).
 
 ## Project management
 
-Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), using the **Scrum** process. GitHub holds the source code and the documentation.
+Planning and tracking happen in **Azure DevOps** (organization `mogrossm`), using the **Agile** process template and working in Scrum-style sprints. GitHub holds the source code and the documentation.
 
 - **Backlog:** 5 epics, 20 features, 80 user stories and their tasks, organized by the five subsystems below.
-- **Sprints:** one-week sprints. Sprint 1 runs from 12 to 19 October 2026.
+- **Sprints:** implementation is planned as three one-week sprints. Dates will be set when implementation starts.
 - **Wiki:** the Project Initiation Document, the context diagram, user scenarios and the AI Studio prototype live in the Azure DevOps wiki.
 - **Linking:** put `AB#<id>` in a commit message or pull request description to link it to an Azure Boards work item, for example `AB#183`. This needs the [Azure Boards app for GitHub](https://learn.microsoft.com/azure/devops/boards/github/).
 
 | Epic | Subsystem | Lead |
 |---|---|---|
-| [Epic 1](https://dev.azure.com/mogrossm/_workitems/edit/7) | Infrastructure, Database & Authentication | Elkana Drin |
+| [Epic 1](https://dev.azure.com/mogrossm/_workitems/edit/464) | Infrastructure, Database & Authentication | Elkana Drin |
 | [Epic 2](https://dev.azure.com/mogrossm/_workitems/edit/8) | Moodle Scraping & Extension Core | Shoham Kaminetzky |
 | [Epic 3](https://dev.azure.com/mogrossm/_workitems/edit/9) | Backend Sync & Moodle Integration | Benaya Birnbaum |
-| [Epic 4](https://dev.azure.com/mogrossm/_workitems/edit/10) | User Interface, Dashboard & Time Management | Moshe Grossman |
+| [Epic 4](https://dev.azure.com/mogrossm/_workitems/edit/10) | User Interface, Dashboard & Time Management | Moshe Grossman (with Shoham Kaminetzky) |
 | [Epic 5](https://dev.azure.com/mogrossm/_workitems/edit/6) | AI Layer & Academic Automation | Moshe Grossman |
 
 Prototype: [academic-task-manager.ai.studio](https://academic-task-manager.ai.studio/)
@@ -95,10 +95,20 @@ Current:
 ```
 .
 ├── .github/                # Issue and PR templates, code owners
+├── backend/                # FastAPI server (Docker): sync logic, AI gateway
+│   ├── app/main.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/               # Dashboard (placeholder Node server; React comes in Epic 4)
+│   ├── Dockerfile
+│   ├── package.json
+│   └── server.js
 ├── docs/                   # Project documentation
 │   ├── adr/                # Architecture Decision Records
 │   ├── architecture.md     # System overview
 │   └── requirements.md     # Functional and non-functional requirements
+├── .env.example            # Template for local environment variables
+├── docker-compose.yml      # Local development environment
 ├── .editorconfig
 ├── .gitattributes
 ├── .gitignore
@@ -113,29 +123,33 @@ Planned folders, to be added as each subsystem starts:
 | Folder | Contents | Epic |
 |---|---|---|
 | `extension/` | Chrome extension (Manifest V3) | 2 |
-| `backend/` | FastAPI server, sync logic, AI gateway | 3, 5 |
-| `frontend/` | React dashboard | 4 |
 | `supabase/` | Database migrations and row-level security policies | 1 |
 | `tests/` | Integration and end-to-end tests (Playwright / Selenium) | all |
-| `docker-compose.yml` | Local development environment | 1 |
 
 ## Getting started
 
-_No code yet. Setup instructions will be added with the first Sprint 1 deliverables (User Story 1.4.1, Docker Compose environment)._
-
-Expected prerequisites:
+### Prerequisites
 
 - Git
-- Docker Desktop
-- Node.js (LTS) for the React dashboard and the extension build
-- Python 3.12+ for the backend
-- Google Chrome, for loading the extension
-- A Supabase project and a Google AI Studio API key (supplied through environment variables, never committed)
+- Docker Desktop (includes Docker Compose)
+- Google Chrome, for loading the extension (once it exists)
+
+### Run locally
 
 ```bash
 git clone https://github.com/mos26613/SE-2026.git
 cd SE-2026
+cp .env.example .env        # then fill in your own Supabase values; never commit .env
+docker compose up --build
 ```
+
+| Service | URL |
+|---|---|
+| Backend API | http://localhost:8000 |
+| API documentation (Swagger) | http://localhost:8000/docs |
+| Frontend | http://localhost:3000 |
+
+Stop everything with `docker compose down`. The backend reloads automatically when you edit files in `backend/`.
 
 ## Development workflow
 
@@ -157,8 +171,8 @@ In short: pick a work item in Azure Boards, branch from `main`, make small focus
 |---|---|
 | Elkana Drin | Team Lead & Architecture: Supabase Auth, row-level security, DevOps |
 | Benaya Birnbaum | Backend & Database Lead: FastAPI, sync algorithms, caching |
-| Moshe Grossman | AI Integration & Frontend Lead: Gemini API, PII anonymization, function calling, Appeal Assistant, React dashboard |
-| Shoham Kaminetzky | Chrome Extension Lead: Manifest V3 extension, background sync, Moodle page scraping, session/cookie handling |
+| Moshe Grossman | AI Integration & Frontend Lead: Gemini API, PII anonymization, function calling, Appeal Assistant; lead for the React dashboard |
+| Shoham Kaminetzky | Chrome Extension Lead: Manifest V3 extension, background sync, Moodle page scraping, session/cookie handling; supports the React dashboard |
 
 ## License
 

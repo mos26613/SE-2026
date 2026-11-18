@@ -6,7 +6,9 @@
 
 ## Context
 
-The AI features (chat agent, Appeal Assistant) work with the student's tasks, grader comments and answers. These can contain names, ID numbers and email addresses. Sending them to an external AI service is a privacy risk.
+The AI features (chat agent, Appeal Assistant) work with files and text the student uploads, such as grader comments and the student's answers. These can contain names, ID numbers and email addresses. Sending them to an external AI service is a privacy risk.
+
+This ADR covers only data sent to the AI (Epic 5). Protecting the user data we collect and store is a separate concern, handled in Epic 1 (User Story 1.3.4).
 
 ## Options considered
 
