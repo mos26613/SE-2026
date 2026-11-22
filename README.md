@@ -96,8 +96,10 @@ Current:
 .
 ├── .github/                # Issue and PR templates, code owners
 ├── backend/                # FastAPI server (Docker): sync logic, AI gateway
-│   ├── app/main.py
+│   ├── app/                # Endpoints, models, Gemini filter, Supabase access
+│   ├── tests/              # Pytest API tests
 │   ├── Dockerfile
+│   ├── README.md           # How the backend works and how to run it
 │   └── requirements.txt
 ├── frontend/               # Dashboard (placeholder Node server; React comes in Epic 4)
 │   ├── Dockerfile
