@@ -56,6 +56,7 @@ def _to_row(task: TaskIn, ai: AIResult | None) -> dict:
         "moodle_id": task.moodle_id,
         "title": task.title,
         "course_name": task.course_name,
+        "moodle_course_id": task.moodle_course_id,
         "description": task.description,
         "due_date": task.due_date.isoformat() if task.due_date else None,
         "moodle_url": str(task.moodle_url) if task.moodle_url else None,

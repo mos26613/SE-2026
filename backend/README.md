@@ -27,7 +27,6 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 | `app/auth.py` | Checks the student's Supabase login token |
 | `app/config.py` | Settings from the root `.env` |
 | `tests/test_api.py` | End-to-end API tests with an in-memory store and a fake Gemini |
-| `docs/tasks-table-draft.sql` | Suggested `tasks` table for Epic 1 (not applied) |
 
 ## Endpoints
 
@@ -50,6 +49,7 @@ Example sync body:
       "moodle_id": "48213",
       "title": "תרגיל בית 3",
       "course_name": "מבני נתונים",
+      "moodle_course_id": 1234,
       "description": "Submit a PDF...",
       "due_date": "2026-12-05T23:59:00+02:00",
       "moodle_url": "https://moodle.example.ac.il/mod/assign/view.php?id=48213"
@@ -57,6 +57,8 @@ Example sync body:
   ]
 }
 ```
+
+`moodle_course_id` (Moodle's numeric course ID) is optional but recommended: it links the task to the student's row in the `courses` table, which is where the course name is stored. Without it the task is saved, but its course name isn't.
 
 Dates are ISO 8601. A date without a time zone is treated as Israel time. The dashboard should convert returned dates to local time for display.
 
@@ -103,12 +105,19 @@ Notes:
 ## Connecting to Supabase
 
 1. In the Supabase dashboard open **Settings → API** and copy the **Project URL** and the **anon public** key into the root `.env` (`SUPABASE_URL`, `SUPABASE_KEY`). Never the `service_role` key.
-2. The database needs a `tasks` table with the columns in `app/db.py` (`COLUMNS`), plus `user_id`, `status` and a unique constraint on `(user_id, moodle_id)`. `docs/tasks-table-draft.sql` is a suggested design for the Epic 1 owner.
-3. Restart. `GET /health` should show `"mode": "supabase"`.
+2. Restart. `GET /health` should show `"mode": "supabase"`.
+
+The schema is owned by Epic 1 (project `dsclfcysdrjchhyynggt`). What the backend relies on:
+
+- `tasks`: the columns in `app/db.py` (`COLUMNS`) plus `user_id`, a unique constraint on `(user_id, moodle_id)`, and a foreign key `(user_id, moodle_course_id)` → `courses`.
+- `courses`: `user_id`, `moodle_course_id`, `name`, unique on `(user_id, moodle_course_id)`. The backend creates or renames a course when a task arrives with a `moodle_course_id`.
+- `users`: one row per student, created automatically on sign-up by the `on_auth_user_created` trigger (`tasks.user_id` references it).
+- Row-level security on all three, and `grant ... to authenticated` so the Data API can reach them (the project doesn't expose new tables automatically).
 
 ## Not done yet
 
 - **PII anonymization (US 5.2.x, ADR 0003):** task titles and descriptions are currently sent to Gemini as they are. A description could contain a lecturer's name or email, so the anonymization middleware must be added before this goes to production.
-- **Real Supabase test (US 3.1.3, 3.2.1, 3.2.2):** the Supabase code is written and unit-tested with fakes, but waits for the `tasks` table.
+- **Real Supabase test (US 3.1.3, 3.2.1, 3.2.2):** the Supabase code matches Epic 1's schema and is unit-tested with fakes, but hasn't run against the real project yet.
+- **`is_modified` ("Recently Modified" badge, Epic 3):** the column exists but the backend doesn't set it yet when a deadline changes.
 - **Large syncs:** all tasks go to Gemini in one request, and Gemini is called again on every re-sync. Fine for tens of tasks; batching and skipping unchanged tasks would help once real extension data arrives.
 - **Rate limiting (US 3.1.4)**.

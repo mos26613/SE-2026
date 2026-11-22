@@ -98,7 +98,6 @@ Current:
 ├── backend/                # FastAPI server (Docker): sync logic, AI gateway
 │   ├── app/                # Endpoints, models, Gemini filter, Supabase access
 │   ├── tests/              # Pytest API tests
-│   ├── docs/               # Backend notes (draft tasks table)
 │   ├── Dockerfile
 │   ├── README.md           # How the backend works and how to run it
 │   └── requirements.txt

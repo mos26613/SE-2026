@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # The anon/public key. Never the service_role key: requests act as the student so RLS applies.
     supabase_key: str = Field("", validation_alias=AliasChoices("SUPABASE_KEY", "SUPABASE_ANON_KEY"))
     tasks_table: str = "tasks"
+    courses_table: str = "courses"
 
     # Gemini. If GEMINI_API_KEY is empty, tasks are saved without AI fields.
     gemini_api_key: str = ""

@@ -172,37 +172,99 @@ def test_ai_parser_ignores_unknown_ids_and_bad_output(monkeypatch):
     assert ai_filter.classify_tasks([TaskIn(moodle_id="101", title="Exam")], dev_settings(gemini_api_key="k")) == {}
 
 
-def test_supabase_store_keeps_old_ai_fields_when_ai_missing():
-    """SupabaseStore sends rows with and without AI fields as separate upserts."""
+def _fake_supabase_store(calls: list, select_rows=None):
+    """A SupabaseStore whose client records every upsert/select instead of calling Supabase."""
     from app.db import SupabaseStore
 
-    calls = []
-
     class FakeQuery:
-        def __init__(self, payload=None, kw=None):
-            self.payload, self.kw = payload, kw
+        def __init__(self, table):
+            self.table = table
 
         def upsert(self, payload, **kw):
-            calls.append((payload, kw))
+            calls.append((self.table, payload, kw))
+            return self
+
+        def select(self, columns):
+            calls.append((self.table, "select", columns))
+            return self
+
+        def eq(self, *a):
+            return self
+
+        def order(self, *a, **kw):
             return self
 
         def execute(self):
-            return self
+            return type("Res", (), {"data": select_rows or []})()
 
     store = SupabaseStore.__new__(SupabaseStore)
     store._table = "tasks"
-    store._client = type("C", (), {"table": lambda self, name: FakeQuery()})()
+    store._courses = "courses"
+    store._client = type("C", (), {"table": lambda self, name: FakeQuery(name)})()
+    return store
 
+
+def test_supabase_store_keeps_old_ai_fields_when_ai_missing():
+    """SupabaseStore sends rows with and without AI fields as separate upserts."""
+    calls = []
+    store = _fake_supabase_store(calls)
     store.upsert("u1", [
         {"moodle_id": "1", "title": "a", "is_relevant": True, "ai_category": "exam", "ai_priority": 5, "ai_summary": "s"},
         {"moodle_id": "2", "title": "b"},
     ])
-    assert len(calls) == 2
-    for payload, kw in calls:
+    task_calls = [c for c in calls if c[0] == "tasks"]
+    assert len(task_calls) == 2
+    for _, payload, kw in task_calls:
         assert kw == {"on_conflict": "user_id,moodle_id", "default_to_null": False}
         assert all(row["user_id"] == "u1" for row in payload)
-    no_ai = next(p for p, _ in calls if p[0]["moodle_id"] == "2")
+    no_ai = next(p for _, p, _ in task_calls if p[0]["moodle_id"] == "2")
     assert "is_relevant" not in no_ai[0]
+
+
+def test_supabase_store_saves_courses_and_keeps_name_out_of_tasks():
+    """Course names go to the courses table; tasks only get moodle_course_id."""
+    calls = []
+    store = _fake_supabase_store(calls)
+    store.upsert("u1", [
+        {"moodle_id": "1", "title": "a", "course_name": "Data Structures", "moodle_course_id": 77},
+        {"moodle_id": "2", "title": "b", "course_name": None, "moodle_course_id": 88},
+        {"moodle_id": "3", "title": "c", "course_name": "No id", "moodle_course_id": None},
+    ])
+    course_calls = [c for c in calls if c[0] == "courses"]
+    named = next(c for c in course_calls if "ignore_duplicates" not in c[2])
+    placeholder = next(c for c in course_calls if c[2].get("ignore_duplicates"))
+    assert named[1] == [{"user_id": "u1", "moodle_course_id": 77, "name": "Data Structures"}]
+    assert placeholder[1] == [{"user_id": "u1", "moodle_course_id": 88, "name": "Course 88"}]
+    assert named[2]["on_conflict"] == "user_id,moodle_course_id"
+
+    task_rows = [row for c in calls if c[0] == "tasks" for row in c[1]]
+    assert all("course_name" not in row for row in task_rows)
+    assert {row["moodle_course_id"] for row in task_rows} == {77, 88, None}
+
+
+def test_supabase_store_reads_course_name_from_courses():
+    calls = []
+    store = _fake_supabase_store(calls, select_rows=[
+        {"moodle_id": "1", "title": "a", "moodle_course_id": 77, "user_id": "u1", "is_relevant": True,
+         "status": "open", "courses": {"name": "Data Structures"}},
+        {"moodle_id": "2", "title": "b", "moodle_course_id": None, "user_id": "u1", "is_relevant": True,
+         "status": "open", "courses": None},
+    ])
+    tasks = store.list_tasks("u1", include_filtered=False)
+    assert ("tasks", "select", "*, courses(name)") in calls
+    assert tasks[0].course_name == "Data Structures"
+    assert tasks[0].moodle_course_id == 77
+    assert tasks[1].course_name is None
+
+
+def test_moodle_course_id_round_trips_in_dev_mode(client, monkeypatch):
+    monkeypatch.setattr(ai_filter, "classify_tasks", fake_ai({}))
+    client.post("/api/tasks/sync", json={"tasks": [
+        {"moodle_id": "1", "title": "HW", "course_name": "Logic", "moodle_course_id": 1234}
+    ]})
+    task = client.get("/api/tasks").json()[0]
+    assert task["moodle_course_id"] == 1234
+    assert task["course_name"] == "Logic"
 
 
 def test_ai_sends_thinking_level_and_retries_without_it(monkeypatch):

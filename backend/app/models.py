@@ -20,6 +20,7 @@ class TaskIn(BaseModel):
     moodle_id: str = Field(..., min_length=1, max_length=100, description="Moodle's own ID for the assignment")
     title: str = Field(..., min_length=1, max_length=500)
     course_name: Optional[str] = Field(None, max_length=300)
+    moodle_course_id: Optional[int] = Field(None, ge=0, description="Moodle's own ID for the course (links the task to the courses table)")
     description: Optional[str] = Field(None, max_length=10_000)
     due_date: Optional[datetime] = Field(None, description="ISO 8601, e.g. 2026-12-01T23:59:00+02:00")
     moodle_url: Optional[HttpUrl] = None
@@ -54,6 +55,7 @@ class TaskOut(BaseModel):
     moodle_id: str
     title: str
     course_name: Optional[str] = None
+    moodle_course_id: Optional[int] = None
     description: Optional[str] = None
     due_date: Optional[datetime] = None
     moodle_url: Optional[str] = None
