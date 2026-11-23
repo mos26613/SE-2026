@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../config'
 import { supabase } from '../supabase'
 
 // PLACEHOLDER until User Story 1.1.2 (AB#188, student sign-in). Just enough to get a
@@ -14,7 +15,12 @@ export default function LoginPage() {
     setBusy(true)
     setError('')
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) setError('Wrong email or password.')
+    if (signInError) {
+      // Only a real "invalid credentials" answer means a wrong password. Anything else
+      // (server unreachable, bad URL or key) is shown as it is, so it can be fixed.
+      const badCredentials = signInError.code === 'invalid_credentials' || /invalid login credentials/i.test(signInError.message)
+      setError(badCredentials ? 'Wrong email or password.' : `Could not sign in: ${signInError.message}`)
+    }
     setBusy(false)
     // On success, App sees the new session and opens the dashboard.
   }
@@ -22,6 +28,11 @@ export default function LoginPage() {
   return (
     <main className="login">
       <h1>Smart Student Task Hub</h1>
+      {(!SUPABASE_URL || !SUPABASE_ANON_KEY) && (
+        <p role="alert" className="error-text">
+          Sign-in is not configured: set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the root .env, then restart npm run dev.
+        </p>
+      )}
       <form onSubmit={handleSubmit}>
         <label>
           Email
