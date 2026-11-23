@@ -42,24 +42,33 @@ class MandatoryAnonymizationMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.protected_paths = protected_paths
 
-    async def dispatch(self, request: Request, call_next):
-        if request.method in {"POST", "PUT", "PATCH"} and request.url.path.startswith(self.protected_paths):
-            raw_body = await request.body()
-            if raw_body:
-                try:
-                    parsed = json.loads(raw_body.decode("utf-8"))
-                    sanitized = anonymize_payload(parsed)
-                    sanitized_bytes = json.dumps(sanitized, ensure_ascii=False).encode("utf-8")
-                except Exception:
-                    log.warning("Mandatory anonymization failed; blocking request on %s", request.url.path)
-                    return JSONResponse(
-                        status_code=422,
-                        content={"detail": "Request blocked: mandatory anonymization failed"},
-                    )
 
-                async def receive():
+async def dispatch(self, request: Request, call_next):
+    if request.method in {"POST", "PUT", "PATCH"} and request.url.path.startswith(self.protected_paths):
+        raw_body = await request.body()
+        if raw_body:
+            try:
+                parsed = json.loads(raw_body.decode("utf-8"))
+                sanitized = anonymize_payload(parsed)
+                sanitized_bytes = json.dumps(sanitized, ensure_ascii=False).encode("utf-8")
+            except Exception:
+                log.warning("Mandatory anonymization failed; blocking request on %s", request.url.path)
+                return JSONResponse(
+                    status_code=422,
+                    content={"detail": "Request blocked: mandatory anonymization failed"},
+                )
+
+            request._body = sanitized_bytes
+            sent = False
+
+            async def receive():
+                nonlocal sent
+                if not sent:
+                    sent = True
                     return {"type": "http.request", "body": sanitized_bytes, "more_body": False}
+                return {"type": "http.request", "body": b"", "more_body": False}
 
-                request = Request(request.scope, receive=receive)
+            request = Request(request.scope, receive=receive)
+            request._body = sanitized_bytes
 
-        return await call_next(request)
+    return await call_next(request)
