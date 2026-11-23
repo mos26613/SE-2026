@@ -27,6 +27,7 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 | `app/auth.py` | Checks the student's Supabase login token |
 | `app/config.py` | Settings from the root `.env` |
 | `tests/test_api.py` | End-to-end API tests with an in-memory store and a fake Gemini |
+| `tests/test_query_shape.py` | Checks the task queries keep the shape the database indexes expect ([docs/performance/indexing.md](../docs/performance/indexing.md)) |
 
 ## Endpoints
 
