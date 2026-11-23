@@ -27,7 +27,7 @@
       "matches": [
         "*://moodle.jct.ac.il/*"
       ],
-      "js": ["content.js"],
+      "js": ["moodle.js", "content.js"],
       "run_at": "document_idle"
     }
   ]

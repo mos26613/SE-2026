@@ -1,20 +1,26 @@
-// Read-Only DOM Scraper for Institutional Moodle Portals (Feature 2.3)
+// Read-only Moodle task extraction (Feature 2.3, US 2.3.1 AB#478)
+//
+// 1. Main source: Moodle's own calendar service (see moodle.js). Exact due times,
+//    course names and links, on any Moodle page or theme.
+// 2. Fallback: the DOM scraper below, if the service isn't available.
 (function () {
   if (window.__taskHubScraperInjected) return;
   window.__taskHubScraperInjected = true;
 
+  const Moodle = globalThis.TaskHubMoodle; // from moodle.js, loaded first (manifest.json)
+
   // Listen for manual sync requests from background service worker
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "FORCE_SCRAPE") {
-      const tasks = extractAllMoodleTasks();
-      sendResponse({ tasks });
+      extractAllMoodleTasks().then(sendResponse);
+      return true; // keep the channel open for the async answer
     }
-    return true;
+    return false;
   });
 
   // Execute passive background scrape after dynamic widgets settle (US 2.2.2)
-  setTimeout(() => {
-    const tasks = extractAllMoodleTasks();
+  setTimeout(async () => {
+    const { tasks } = await extractAllMoodleTasks();
     if (tasks.length > 0) {
       chrome.runtime.sendMessage({
         type: "SCRAPED_DATA",
@@ -24,8 +30,23 @@
     }
   }, 2000);
 
-  // Aggregate tasks across different Moodle views and themes (US 2.3.4)
-  function extractAllMoodleTasks() {
+  // Returns { tasks, source }. Tries Moodle's calendar service first.
+  async function extractAllMoodleTasks() {
+    try {
+      const tasks = await Moodle.fetchEventsFromMoodle({
+        baseUrl: window.location.origin,
+        sesskey: Moodle.findSesskey(document.documentElement.innerHTML),
+        fetchFn: window.fetch.bind(window),
+      });
+      return { tasks, source: "calendar-service" };
+    } catch (e) {
+      console.warn("[TaskHub] Moodle calendar service unavailable, falling back to the page:", e.message);
+      return { tasks: scrapeDom(), source: "dom" };
+    }
+  }
+
+  // Fallback: aggregate tasks across different Moodle views and themes (US 2.3.4)
+  function scrapeDom() {
     const extracted = [];
     extracted.push(...scrapeTimelineAndUpcoming());
 
@@ -64,7 +85,8 @@
         const moodleId = extractActivityId(moodleUrl);
         if (!moodleId) return;
 
-        const rawTitle = cleanText(titleEl.textContent);
+        const rawTitle = Moodle.cleanEventTitle(titleEl.textContent);
+        if (!rawTitle) return; // Moodle renders empty placeholder items before the real list
         const courseName = courseEl ? cleanText(courseEl.textContent) : extractCourseFromBreadcrumbs();
         const moodleCourseId = extractCourseId(node);
         const rawDate = dateEl ? cleanText(dateEl.textContent) : "";
@@ -170,12 +192,7 @@
     return null;
   }
 
-  // Extract Moodle activity ID as string from mod/.../view.php?id=XXXX
-  function extractActivityId(url) {
-    if (!url || !url.includes("/mod/")) return null;
-    const match = url.match(/[?&]id=(\d+)/);
-    return match ? String(match[1]) : null;
-  }
+  const extractActivityId = Moodle.extractActivityId;
 
   function extractCourseFromBreadcrumbs() {
     const crumb = document.querySelector('.breadcrumb a[href*="course/view.php"], nav[aria-label="Navigation bar"] a[href*="course/view.php"]');
@@ -209,7 +226,6 @@
     return null;
   }
 
-  function cleanText(str) {
-    return str ? str.replace(/\s+/g, " ").trim() : "";
-  }
+  // Collapses whitespace and removes invisible RTL/zero-width characters.
+  const cleanText = Moodle.cleanText;
 })();
