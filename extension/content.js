@@ -34,9 +34,9 @@
       if (singleTask) extracted.push(singleTask);
     }
 
-    // Deduplicate tasks by activity URL
+    // Deduplicate tasks by moodle_id
     return Array.from(
-      new Map(extracted.map((item) => [item.link, item])).values()
+      new Map(extracted.map((item) => [item.moodle_id, item])).values()
     );
   }
 
@@ -54,31 +54,32 @@
 
     eventNodes.forEach((node) => {
       try {
-        const titleEl = node.querySelector("h6 a, .eventname a, a[data-action='view-event'], a");
+        const titleEl = node.querySelector("h6 a, .eventname a, a[data-action='view-event'], a[href*='/mod/']");
         const courseEl = node.querySelector(".text-muted, .course a, [data-region='event-course-name']");
         const dateEl = node.querySelector(".date, time, [data-region='event-time'], .col-11");
 
         if (!titleEl || !titleEl.href) return;
 
+        const moodleUrl = titleEl.href.split("#")[0];
+        const moodleId = extractActivityId(moodleUrl);
+        if (!moodleId) return;
+
         const rawTitle = cleanText(titleEl.textContent);
-        const link = titleEl.href;
         const courseName = courseEl ? cleanText(courseEl.textContent) : extractCourseFromBreadcrumbs();
-        const moodleCourseId = extractCourseId(node, link);
+        const moodleCourseId = extractCourseId(node);
         const rawDate = dateEl ? cleanText(dateEl.textContent) : "";
         const dueDate = parseMoodleDateToISO(rawDate);
 
         if (!dueDate) return;
 
         results.push({
-          moodle_course_id: moodleCourseId,
-          course_name: courseName || "קורס כללי",
+          moodle_id: moodleId,
           title: rawTitle,
-          task_type: inferTaskType(rawTitle, link),
-          points: extractPoints(node.textContent),
+          course_name: courseName || null,
+          moodle_course_id: moodleCourseId,
+          description: "",
           due_date: dueDate,
-          is_submitted: inferSubmissionStatus(node.textContent),
-          link: link,
-          description: ""
+          moodle_url: moodleUrl
         });
       } catch (e) {
         console.warn("[TaskHub] Failed parsing event node:", e);
@@ -91,13 +92,16 @@
   // Extract details from an individual assignment or quiz view page (US 2.3.1)
   function scrapeSingleActivityPage() {
     try {
+      const moodleUrl = window.location.href.split("#")[0];
+      const moodleId = extractActivityId(moodleUrl);
+      if (!moodleId) return null;
+
       const titleEl = document.querySelector("h1, h2, .page-header-headings h1");
       if (!titleEl) return null;
 
       const title = cleanText(titleEl.textContent);
       const courseName = extractCourseFromBreadcrumbs();
-      const moodleCourseId = extractCourseId(document, window.location.href);
-      const link = window.location.href.split("#")[0];
+      const moodleCourseId = extractCourseId(document);
 
       let dueDate = null;
       const rows = document.querySelectorAll("table.generaltable tr, .submissionstatustable tr, .activity-dates div");
@@ -111,18 +115,14 @@
 
       if (!dueDate) return null;
 
-      const pageBodyText = document.querySelector("#region-main")?.textContent || "";
-
       return {
-        moodle_course_id: moodleCourseId,
-        course_name: courseName || "קורס אקדמי",
+        moodle_id: moodleId,
         title: title,
-        task_type: inferTaskType(title, link),
-        points: extractPoints(pageBodyText),
+        course_name: courseName || null,
+        moodle_course_id: moodleCourseId,
+        description: cleanText(document.querySelector("#intro, .activity-description")?.textContent || "").slice(0, 300),
         due_date: dueDate,
-        is_submitted: inferSubmissionStatus(pageBodyText),
-        link: link,
-        description: cleanText(document.querySelector("#intro, .activity-description")?.textContent || "").slice(0, 300)
+        moodle_url: moodleUrl
       };
     } catch (e) {
       console.warn("[TaskHub] Failed parsing single activity:", e);
@@ -170,41 +170,43 @@
     return null;
   }
 
+  // Extract Moodle activity ID as string from mod/.../view.php?id=XXXX
+  function extractActivityId(url) {
+    if (!url || !url.includes("/mod/")) return null;
+    const match = url.match(/[?&]id=(\d+)/);
+    return match ? String(match[1]) : null;
+  }
+
   function extractCourseFromBreadcrumbs() {
-    const crumb = document.querySelector('.breadcrumb a[href*="course/view.php"], nav[aria-label="Navigation bar"] a[href*="course"]');
+    const crumb = document.querySelector('.breadcrumb a[href*="course/view.php"], nav[aria-label="Navigation bar"] a[href*="course/view.php"]');
     return crumb ? cleanText(crumb.textContent) : "";
   }
 
-  function extractCourseId(rootEl, url) {
-    const urlMatch = url.match(/[?&]id=(\d+)/);
-    const dataCourse = rootEl?.getAttribute?.("data-course-id") || document.body.getAttribute("class")?.match(/course-(\d+)/)?.[1];
-    return Number(dataCourse || urlMatch?.[1] || 0);
-  }
-
-  function inferTaskType(title, url) {
-    if (url.includes("/mod/quiz/") || title.includes("בוחן") || title.toLowerCase().includes("quiz")) {
-      return "בוחן מקוון";
+  // Extract numeric course ID from course/view.php?id=... links or attributes; fallback to null
+  function extractCourseId(rootEl) {
+    const courseLink = rootEl?.querySelector?.('a[href*="course/view.php"]');
+    if (courseLink?.href) {
+      const match = courseLink.href.match(/[?&]id=(\d+)/);
+      if (match) return Number(match[1]);
     }
-    if (title.includes("פרויקט") || title.toLowerCase().includes("project")) {
-      return "פרויקט";
-    }
-    if (title.includes("תרגיל")) {
-      return "תרגיל בית";
-    }
-    return "מטלת בית";
-  }
 
-  function extractPoints(text) {
-    const match = text.match(/(\d+)\s*(?:נק'|נקודות|points|pts)/i);
-    return match ? Number(match[1]) : null;
-  }
+    const dataCourse = rootEl?.getAttribute?.("data-course-id") || rootEl?.closest?.("[data-course-id]")?.getAttribute("data-course-id");
+    if (dataCourse && /^\d+$/.test(dataCourse)) {
+      return Number(dataCourse);
+    }
 
-  function inferSubmissionStatus(text) {
-    return (
-      text.includes("הוגש למתן ציון") ||
-      text.includes("Submitted for grading") ||
-      text.includes("הושלם")
-    );
+    const crumbLink = document.querySelector('.breadcrumb a[href*="course/view.php"], nav a[href*="course/view.php"]');
+    if (crumbLink?.href) {
+      const match = crumbLink.href.match(/[?&]id=(\d+)/);
+      if (match) return Number(match[1]);
+    }
+
+    const bodyCourseMatch = document.body?.className?.match(/\bcourse-(\d+)\b/);
+    if (bodyCourseMatch && Number(bodyCourseMatch[1]) > 1) {
+      return Number(bodyCourseMatch[1]);
+    }
+
+    return null;
   }
 
   function cleanText(str) {

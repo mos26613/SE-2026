@@ -1,5 +1,5 @@
 // Configuration constants - update API_BASE_URL for production deployment
-const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL = "http://localhost:8000/api";
 const SYNC_THROTTLE_MS = 15 * 60 * 1000; // 15 minutes throttle for passive sync (US 2.2.3)
 
 // Initialize default extension state on installation
@@ -89,8 +89,6 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
       method: "POST",
       headers,
       body: JSON.stringify({
-        source: "moodle_extension",
-        synced_at: new Date().toISOString(),
         tasks: tasks
       })
     });
