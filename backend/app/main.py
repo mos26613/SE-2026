@@ -19,6 +19,9 @@ from .auth import CurrentUser, get_current_user
 from .config import Settings, get_settings
 from .db import MemoryStore, SupabaseStore, TaskStore
 from .models import AIResult, SyncRequest, SyncResponse, TaskIn, TaskOut
+from app.routers import ai
+
+app.include_router(ai.router)
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("task-api")
