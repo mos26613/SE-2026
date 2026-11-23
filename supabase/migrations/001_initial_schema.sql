@@ -19,7 +19,7 @@ create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   moodle_id text not null,
-  moodle_course_id int not null,
+  moodle_course_id int ,
   title text not null,
   description text,
   moodle_url text,
