@@ -19,7 +19,7 @@ create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   moodle_id text not null,
-  course_name text,
+  moodle_course_id int not null,
   title text not null,
   description text,
   moodle_url text,
@@ -32,11 +32,16 @@ create table if not exists public.tasks (
   ai_summary text,
   created_at timestamptz default now() not null,
   updated_at timestamptz not null default now(),
-  constraint tasks_user_moodle_unique unique (user_id, moodle_id)
+  constraint tasks_user_moodle_unique unique (user_id, moodle_id),
+  constraint tasks_course_fk
+    foreign key (user_id, moodle_course_id)
+    references public.courses (user_id, moodle_course_id)
+    on delete cascade
 );
 
 
 create index if not exists idx_tasks_user_due on public.tasks (user_id, due_date);
+create index if not exists idx_tasks_user_course on public.tasks (user_id, moodle_course_id);
 
 
 create or replace function public.set_updated_at()
@@ -117,12 +122,3 @@ on conflict (id) do nothing;
 grant select, insert, update, delete
   on public.users, public.courses, public.tasks
   to authenticated;
-
-
-alter table public.tasks
-  drop column course_name,
-  add column moodle_course_id int,
-  add constraint tasks_course_fk
-    foreign key (user_id, moodle_course_id)
-    references public.courses (user_id, moodle_course_id)
-    on delete cascade;
