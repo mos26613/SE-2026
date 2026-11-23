@@ -40,10 +40,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function checkMoodleSession(url) {
   try {
     if (!url) return false;
-    const cookie = await chrome.cookies.get({
-      url: url,
-      name: "MoodleSession"
-    });
+    // The cookie is "MoodleSession" plus a site-specific suffix on many Moodle sites
+    // (on moodle.jct.ac.il too), so match by prefix instead of the exact name.
+    const cookies = await chrome.cookies.getAll({ url: url });
+    const cookie = cookies.find((c) => c.name.startsWith("MoodleSession"));
 
     if (!cookie || (cookie.expirationDate && cookie.expirationDate * 1000 < Date.now())) {
       await updateStatus("SESSION_EXPIRED");
@@ -72,6 +72,11 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
   }
 
   if (!tasks || tasks.length === 0) {
+    if (isManual) {
+      // Say so instead of silently staying on "not synced".
+      await updateStatus("ERROR");
+      throw new Error("No upcoming assignments were found on this Moodle page.");
+    }
     return { syncedCount: 0 };
   }
 
@@ -94,8 +99,10 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
     });
 
     if (response.status === 401 || response.status === 403) {
-      await updateStatus("SESSION_EXPIRED");
-      throw new Error("Unauthorized: Please verify your Task Hub login token.");
+      // Our own login (the Task Hub token) expired, not the Moodle session.
+      const authError = new Error("Your Task Hub login expired. Paste a new token below.");
+      authError.status = "AUTH_EXPIRED";
+      throw authError;
     }
 
     if (!response.ok) {
@@ -117,7 +124,7 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
     return result;
   } catch (error) {
     console.error("[TaskHub] Sync failed:", error);
-    await updateStatus("ERROR");
+    await updateStatus(error.status || "ERROR");
     chrome.action.setBadgeText({ text: "!" });
     chrome.action.setBadgeBackgroundColor({ color: "#EF4444" });
     throw error;
@@ -140,7 +147,7 @@ async function triggerManualSync() {
         if (chrome.runtime.lastError) {
           return reject(new Error("Could not connect to Moodle page. Refresh the page and try again."));
         }
-        if (response && response.tasks) {
+        if (response && Array.isArray(response.tasks)) {
           try {
             const syncRes = await handleScrapedData(response.tasks, activeTab.url, true);
             resolve(syncRes);
