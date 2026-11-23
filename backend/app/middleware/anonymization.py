@@ -1,8 +1,6 @@
 import json
 import logging
 import re
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 log = logging.getLogger("anonymization-middleware")
@@ -34,39 +32,55 @@ def anonymize_payload(payload):
         return anonymize_text(payload)
     return payload
 
-class MandatoryAnonymizationMiddleware(BaseHTTPMiddleware):
-    """Enforces mandatory PII anonymization before requests reach route handlers."""
+
+class MandatoryAnonymizationMiddleware:
+    """ASGI middleware enforcing mandatory PII anonymization on protected paths."""
 
     def __init__(self, app, protected_paths: tuple[str, ...] = ("/api/tasks/sync",)):
-        super().__init__(app)
+        self.app = app
         self.protected_paths = protected_paths
 
-    async def dispatch(self, request: Request, call_next):
-        if request.method in {"POST", "PUT", "PATCH"} and request.url.path.startswith(self.protected_paths):
-            raw_body = await request.body()
-            if raw_body:
-                try:
-                    parsed = json.loads(raw_body.decode("utf-8"))
-                    sanitized = anonymize_payload(parsed)
-                    sanitized_bytes = json.dumps(sanitized, ensure_ascii=False).encode("utf-8")
-                except Exception:
-                    log.warning("Mandatory anonymization failed; blocking request on %s", request.url.path)
-                    return JSONResponse(
-                        status_code=422,
-                        content={"detail": "Request blocked: mandatory anonymization failed"},
-                    )
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("method") in {"POST", "PUT", "PATCH"}:
+            path = scope.get("path", "")
+            if path.startswith(self.protected_paths):
+                chunks = []
+                more_body = True
+                while more_body:
+                    message = await receive()
+                    if message.get("type") == "http.request":
+                        body_part = message.get("body", b"")
+                        if body_part:
+                            chunks.append(body_part)
+                        more_body = message.get("more_body", False)
+                    else:
+                        more_body = False
 
-                sent = False
+                raw_body = b"".join(chunks)
+                if raw_body:
+                    try:
+                        parsed = json.loads(raw_body.decode("utf-8"))
+                        sanitized = anonymize_payload(parsed)
+                        sanitized_bytes = json.dumps(sanitized, ensure_ascii=False).encode("utf-8")
+                    except Exception:
+                        log.warning("Mandatory anonymization failed; blocking request on %s", path)
+                        response = JSONResponse(
+                            status_code=422,
+                            content={"detail": "Request blocked: mandatory anonymization failed"},
+                        )
+                        await response(scope, receive, send)
+                        return
 
-                async def receive():
-                    nonlocal sent
-                    if not sent:
-                        sent = True
-                        return {"type": "http.request", "body": sanitized_bytes, "more_body": False}
-                    return {"type": "http.request", "body": b"", "more_body": False}
+                    sent = False
 
-                request = Request(request.scope, receive=receive)
-                request._body = sanitized_bytes
+                    async def sanitized_receive():
+                        nonlocal sent
+                        if not sent:
+                            sent = True
+                            return {"type": "http.request", "body": sanitized_bytes, "more_body": False}
+                        return {"type": "http.request", "body": b"", "more_body": False}
 
-        return await call_next(request)
+                    await self.app(scope, sanitized_receive, send)
+                    return
 
+        await self.app(scope, receive, send)
