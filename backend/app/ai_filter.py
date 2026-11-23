@@ -3,6 +3,10 @@
 Gemini decides whether each item is a real task for the student, sorts it into a
 category, rates its priority and writes a one-line summary.
 
+Privacy rule (ADR 0003): personal data such as ID numbers is replaced with
+placeholders before anything is sent, and put back in Gemini's answer here on the
+server. If anonymization fails, Gemini is not called at all.
+
 Design rule: the AI never blocks saving. If there is no key, Gemini is down,
 or it answers with something we can't parse, we return an empty result and the
 tasks are saved without AI fields.
@@ -13,6 +17,7 @@ import time
 
 from pydantic import TypeAdapter, ValidationError
 
+from .anonymizer import Anonymizer
 from .config import Settings
 from .models import AIResult, TaskIn
 
@@ -42,12 +47,14 @@ def _is_transient(error: Exception) -> bool:
     return any(marker in text for marker in _TRANSIENT_MARKERS)
 
 
-def _task_for_prompt(task: TaskIn) -> dict:
+def _task_for_prompt(task: TaskIn, anon: Anonymizer) -> dict:
+    # moodle_id is Moodle's own number, not personal data, and we need it unchanged to
+    # match Gemini's answers back to the tasks. Every free-text field is anonymized.
     return {
         "moodle_id": task.moodle_id,
-        "title": task.title,
-        "course_name": task.course_name,
-        "description": (task.description or "")[:1500],  # keep the prompt small
+        "title": anon.anonymize(task.title),
+        "course_name": anon.anonymize(task.course_name),
+        "description": anon.anonymize((task.description or "")[:1500]),  # keep the prompt small
         "due_date": task.due_date.isoformat() if task.due_date else None,
     }
 
@@ -55,6 +62,15 @@ def _task_for_prompt(task: TaskIn) -> dict:
 def classify_tasks(tasks: list[TaskIn], settings: Settings) -> dict[str, AIResult]:
     """Return {moodle_id: AIResult}. Empty dict means the AI step was skipped or failed."""
     if not tasks or not settings.gemini_api_key:
+        return {}
+
+    # Anonymize first, outside the Gemini error handling: if this fails we must not
+    # send anything, and the tasks are still saved without AI fields.
+    anon = Anonymizer()
+    try:
+        contents = json.dumps([_task_for_prompt(t, anon) for t in tasks], ensure_ascii=False)
+    except Exception as e:  # AnonymizationError, or any other bug while building the prompt
+        log.error("Anonymization failed, not calling Gemini: %s", e)
         return {}
 
     try:
@@ -65,8 +81,6 @@ def classify_tasks(tasks: list[TaskIn], settings: Settings) -> dict[str, AIResul
             api_key=settings.gemini_api_key,
             http_options=types.HttpOptions(timeout=int(settings.gemini_timeout_seconds * 1000)),
         )
-        contents = json.dumps([_task_for_prompt(t) for t in tasks], ensure_ascii=False)
-
         def call(thinking_level: str):
             config = types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
@@ -105,4 +119,8 @@ def classify_tasks(tasks: list[TaskIn], settings: Settings) -> dict[str, AIResul
         return {}
 
     known_ids = {t.moodle_id for t in tasks}
-    return {r.moodle_id: r for r in results if r.moodle_id in known_ids}
+    return {
+        r.moodle_id: r.model_copy(update={"summary": anon.restore(r.summary)})
+        for r in results
+        if r.moodle_id in known_ids
+    }
