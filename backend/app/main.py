@@ -19,6 +19,7 @@ from .auth import CurrentUser, get_current_user
 from .config import Settings, get_settings
 from .db import MemoryStore, SupabaseStore, TaskStore
 from .models import AIResult, SyncRequest, SyncResponse, TaskIn, TaskOut
+from .routers import auth as auth_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("task-api")
@@ -37,6 +38,8 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+app.include_router(auth_router.router)
 
 # One shared in-memory store for dev mode.
 _memory_store = MemoryStore()
