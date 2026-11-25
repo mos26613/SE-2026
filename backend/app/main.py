@@ -1,7 +1,8 @@
 """Smart Student Task Hub API.
 
 Flow for every sync:
-  Chrome extension --POST /api/tasks/sync--> validate (models.py)
+  Chrome extension --POST /api/tasks/sync--> anonymize PII (middleware/anonymization.py)
+                                           -> validate (models.py)
                                            -> Gemini filter (ai_filter.py)
                                            -> save to Supabase (db.py)
   React dashboard  --GET /api/tasks------> read from Supabase
@@ -11,22 +12,25 @@ Then open:     http://localhost:8000/docs
 """
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import ai_filter
 from .auth import CurrentUser, get_current_user
 from .config import Settings, get_settings
 from .db import MemoryStore, SupabaseStore, TaskStore
+from .middleware.anonymization import MandatoryAnonymizationMiddleware
 from .models import AIResult, SyncRequest, SyncResponse, TaskIn, TaskOut
+
+
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("task-api")
 
 app = FastAPI(
     title="Smart Student Task Hub API",
-    description="Receives Moodle assignments from the Chrome extension, filters them with Gemini, "
-    "stores them in Supabase and serves them to the dashboard.",
+    description="Receives Moodle assignments from the Chrome extension, anonymizes PII, "
+    "filters them with Gemini, stores them in Supabase and serves them to the dashboard.",
     version="0.1.0",
 )
 
@@ -37,6 +41,10 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(MandatoryAnonymizationMiddleware)
+
+from app.routers import ai
+app.include_router(ai.router)
 
 # One shared in-memory store for dev mode.
 _memory_store = MemoryStore()
@@ -90,6 +98,7 @@ def health(settings: Settings = Depends(get_settings)):
 
 @app.post("/api/tasks/sync", response_model=SyncResponse, tags=["tasks"])
 def sync_tasks(
+    request: Request,
     body: SyncRequest,
     user: CurrentUser = Depends(get_current_user),
     store: TaskStore = Depends(get_store),
@@ -105,7 +114,14 @@ def sync_tasks(
     # The same assignment twice in one batch: keep the last copy.
     unique = list({t.moodle_id: t for t in body.tasks}.values())
 
-    ai_results = ai_filter.classify_tasks(unique, settings)
+    anonymization_ok = getattr(request.state, "anonymization_ok", True)
+    if anonymization_ok:
+        ai_results = ai_filter.classify_tasks(unique, settings)
+    else:
+        reason = getattr(request.state, "anonymization_reason", "unknown reason")
+        log.warning("Skipping AI classification because anonymization failed (%s); saving without AI fields", reason)
+        ai_results = {}
+
     rows = [_to_row(t, ai_results.get(t.moodle_id)) for t in unique]
 
     try:
@@ -136,3 +152,4 @@ def list_tasks(
     except Exception:
         log.exception("Reading tasks failed")
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not read tasks from the database")
+
