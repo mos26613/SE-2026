@@ -73,9 +73,10 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
 
   if (!tasks || tasks.length === 0) {
     if (isManual) {
-      // Say so instead of silently staying on "not synced".
-      await updateStatus("ERROR");
-      throw new Error("No upcoming assignments were found on this Moodle page.");
+      // No upcoming assignments is a normal answer (Scenario 1), not an error: say so
+      // instead of silently staying on "not synced".
+      await chrome.storage.local.set({ syncStatus: "NO_TASKS", lastSyncTime: new Date().toISOString() });
+      chrome.action.setBadgeText({ text: "" });
     }
     return { syncedCount: 0 };
   }
@@ -99,10 +100,8 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
     });
 
     if (response.status === 401 || response.status === 403) {
-      // Our own login (the Task Hub token) expired, not the Moodle session.
-      const authError = new Error("Your Task Hub login expired. Paste a new token below.");
-      authError.status = "AUTH_EXPIRED";
-      throw authError;
+      await updateStatus("SESSION_EXPIRED");
+      throw new Error("Unauthorized: Please verify your Task Hub login token.");
     }
 
     if (!response.ok) {
@@ -124,7 +123,7 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
     return result;
   } catch (error) {
     console.error("[TaskHub] Sync failed:", error);
-    await updateStatus(error.status || "ERROR");
+    await updateStatus("ERROR");
     chrome.action.setBadgeText({ text: "!" });
     chrome.action.setBadgeBackgroundColor({ color: "#EF4444" });
     throw error;

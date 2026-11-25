@@ -35,6 +35,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         statusBadge.classList.add("connected");
         statusText.textContent = "Moodle: מסונכרן";
         break;
+      case "NO_TASKS":
+        statusBadge.classList.add("connected");
+        statusText.textContent = "אין מטלות קרובות";
+        break;
       case "SYNCING":
         statusBadge.classList.add("syncing");
         statusText.textContent = "מסנכרן...";
@@ -43,10 +47,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         statusBadge.classList.add("expired");
         statusText.textContent = "סשן פג תוקף";
         sessionAlert.style.display = "block";
-        break;
-      case "AUTH_EXPIRED":
-        statusBadge.classList.add("expired");
-        statusText.textContent = "התחברות פגה";
         break;
       case "ERROR":
         statusBadge.classList.add("expired");
