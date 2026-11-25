@@ -1,4 +1,4 @@
-﻿"""Centralized AI Gateway for Gemini calls in the backend."""
+"""Centralized AI Gateway for Gemini calls in the backend."""
 import logging
 import time
 

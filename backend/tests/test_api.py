@@ -1,4 +1,4 @@
-﻿"""End-to-end tests for the API (section 4: E2E Test & FastAPI Integration).
+"""End-to-end tests for the API (section 4: E2E Test & FastAPI Integration).
 
 They run the whole request flow - validation, AI step, saving, reading back -
 against the in-memory store, with Gemini replaced by a fake so the tests are
@@ -141,9 +141,9 @@ def test_too_many_tasks_is_rejected(client):
 
 def test_hebrew_titles_round_trip(client, monkeypatch):
     monkeypatch.setattr(ai_filter, "classify_tasks", fake_ai({}))
-    client.post("/api/tasks/sync", json={"tasks": [{"moodle_id": "201", "title": "׳×׳¨׳’׳™׳ ׳‘׳™׳× 4", "course_name": "׳׳‘׳ ׳™ ׳ ׳×׳•׳ ׳™׳"}]})
+    client.post("/api/tasks/sync", json={"tasks": [{"moodle_id": "201", "title": "תרגיל בית 4", "course_name": "׳׳‘׳ ׳™ ׳ ׳×׳•׳ ׳™׳"}]})
     task = client.get("/api/tasks").json()[0]
-    assert task["title"] == "׳×׳¨׳’׳™׳ ׳‘׳™׳× 4"
+    assert task["title"] == "תרגיל בית 4"
     assert task["course_name"] == "׳׳‘׳ ׳™ ׳ ׳×׳•׳ ׳™׳"
 
 

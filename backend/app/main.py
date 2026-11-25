@@ -1,4 +1,4 @@
-﻿"""Smart Student Task Hub API.
+"""Smart Student Task Hub API.
 
 Flow for every sync:
   Chrome extension --POST /api/tasks/sync--> validate (models.py)

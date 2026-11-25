@@ -1,4 +1,4 @@
-﻿"""The AI step: send the scraped tasks to the AI Gateway and get back a verdict for each one."""
+"""The AI step: send the scraped tasks to the AI Gateway and get back a verdict for each one."""
 import json
 import logging
 
