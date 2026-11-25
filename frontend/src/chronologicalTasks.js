@@ -1,4 +1,4 @@
-﻿function startOfDay(date) {
+function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
@@ -58,4 +58,31 @@ export function groupTasksChronologically(tasks = [], now = new Date()) {
       section: label,
       tasks: groups.get(label),
     }));
+}
+
+export function getTaskUrgency(task, now = new Date(), urgentWindowHours = 48) {
+  const deadline = parseDeadline(task);
+  if (!deadline) return "normal";
+
+  const diffMs = deadline.getTime() - now.getTime();
+  if (diffMs < 0) return "overdue";
+
+  const windowMs = urgentWindowHours * 60 * 60 * 1000;
+  if (diffMs <= windowMs) return "urgent";
+
+  return "normal";
+}
+
+export function annotateTasksWithUrgency(tasks = [], now = new Date(), urgentWindowHours = 48) {
+  return sortTasksChronologically(tasks).map((task) => {
+    const urgency = getTaskUrgency(task, now, urgentWindowHours);
+    return {
+      ...task,
+      urgency,
+      isOverdue: urgency === "overdue",
+      isUrgent: urgency === "urgent",
+      highlightBadge:
+        urgency === "overdue" ? "Overdue" : urgency === "urgent" ? "Urgent" : null,
+    };
+  });
 }
