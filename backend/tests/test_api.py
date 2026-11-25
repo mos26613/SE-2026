@@ -1,4 +1,4 @@
-"""End-to-end tests for the API (section 4: E2E Test & FastAPI Integration).
+﻿"""End-to-end tests for the API (section 4: E2E Test & FastAPI Integration).
 
 They run the whole request flow - validation, AI step, saving, reading back -
 against the in-memory store, with Gemini replaced by a fake so the tests are
@@ -141,10 +141,10 @@ def test_too_many_tasks_is_rejected(client):
 
 def test_hebrew_titles_round_trip(client, monkeypatch):
     monkeypatch.setattr(ai_filter, "classify_tasks", fake_ai({}))
-    client.post("/api/tasks/sync", json={"tasks": [{"moodle_id": "201", "title": "תרגיל בית 4", "course_name": "מבני נתונים"}]})
+    client.post("/api/tasks/sync", json={"tasks": [{"moodle_id": "201", "title": "׳×׳¨׳’׳™׳ ׳‘׳™׳× 4", "course_name": "׳׳‘׳ ׳™ ׳ ׳×׳•׳ ׳™׳"}]})
     task = client.get("/api/tasks").json()[0]
-    assert task["title"] == "תרגיל בית 4"
-    assert task["course_name"] == "מבני נתונים"
+    assert task["title"] == "׳×׳¨׳’׳™׳ ׳‘׳™׳× 4"
+    assert task["course_name"] == "׳׳‘׳ ׳™ ׳ ׳×׳•׳ ׳™׳"
 
 
 def test_ai_parser_ignores_unknown_ids_and_bad_output(monkeypatch):
@@ -334,7 +334,7 @@ def test_ai_retries_once_when_gemini_is_busy(monkeypatch):
     import google.genai
 
     monkeypatch.setattr(google.genai, "Client", lambda **kwargs: FakeClient())
-    monkeypatch.setattr(ai_filter, "RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr(ai_filter.ai_gateway, "RETRY_DELAY_SECONDS", 0)
     settings = dev_settings(gemini_api_key="k")
     task = [TaskIn(moodle_id="1", title="HW")]
 
@@ -371,3 +371,25 @@ def test_supabase_key_accepts_both_env_names(monkeypatch):
     monkeypatch.delenv("SUPABASE_KEY")
     monkeypatch.setenv("SUPABASE_ANON_KEY", "old-name")
     assert Settings(_env_file=None).supabase_key == "old-name"
+
+
+def test_classify_tasks_uses_centralized_gateway(monkeypatch):
+    from app.models import TaskIn
+
+    captured = {}
+
+    def fake_generate_text(*, prompt, system_instruction, settings, response_mime_type="application/json", temperature=0.1):
+        captured["prompt"] = prompt
+        captured["system_instruction"] = system_instruction
+        captured["response_mime_type"] = response_mime_type
+        captured["temperature"] = temperature
+        return '[{"moodle_id": "55", "is_relevant": true, "category": "homework", "priority": 3, "summary": "Solve assignment"}]'
+
+    monkeypatch.setattr(ai_filter.ai_gateway, "generate_text", fake_generate_text)
+    out = ai_filter.classify_tasks([TaskIn(moodle_id="55", title="HW 5")], dev_settings(gemini_api_key="test-key"))
+
+    assert set(out) == {"55"}
+    assert out["55"].summary == "Solve assignment"
+    assert captured["response_mime_type"] == "application/json"
+    assert '"moodle_id": "55"' in captured["prompt"]
+

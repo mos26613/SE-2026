@@ -1,4 +1,4 @@
-"""Smart Student Task Hub API.
+﻿"""Smart Student Task Hub API.
 
 Flow for every sync:
   Chrome extension --POST /api/tasks/sync--> validate (models.py)
@@ -19,9 +19,7 @@ from .auth import CurrentUser, get_current_user
 from .config import Settings, get_settings
 from .db import MemoryStore, SupabaseStore, TaskStore
 from .models import AIResult, SyncRequest, SyncResponse, TaskIn, TaskOut
-from app.routers import ai
 
-app.include_router(ai.router)
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("task-api")
@@ -40,6 +38,9 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+from app.routers import ai
+app.include_router(ai.router)
 
 # One shared in-memory store for dev mode.
 _memory_store = MemoryStore()
@@ -139,3 +140,4 @@ def list_tasks(
     except Exception:
         log.exception("Reading tasks failed")
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not read tasks from the database")
+
