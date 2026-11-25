@@ -2,6 +2,7 @@
 import logging
 import time
 
+from .anonymizer import AnonymizationError, apply_mandatory_anonymization
 from .config import Settings
 
 log = logging.getLogger(__name__)
@@ -24,7 +25,16 @@ def generate_text(
     response_mime_type: str = "application/json",
     temperature: float = 0.1,
 ) -> str:
-    """Send a prompt through the single Gemini client entry point and return raw text."""
+    """Send an anonymized prompt through the single Gemini client entry point."""
+    try:
+        safe_prompt, safe_system = apply_mandatory_anonymization(
+            prompt=prompt,
+            system_instruction=system_instruction,
+        )
+    except AnonymizationError:
+        log.warning("Blocking AI request because mandatory anonymization failed.")
+        raise
+
     if not settings.gemini_api_key:
         return ""
 
@@ -38,7 +48,7 @@ def generate_text(
 
     def call(thinking_level: str):
         config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
+            system_instruction=safe_system,
             response_mime_type=response_mime_type,
             temperature=temperature,
         )
@@ -46,7 +56,7 @@ def generate_text(
             config.thinking_config = types.ThinkingConfig(thinking_level=thinking_level.upper())
         return client.models.generate_content(
             model=settings.gemini_model,
-            contents=prompt,
+            contents=safe_prompt,
             config=config,
         )
 

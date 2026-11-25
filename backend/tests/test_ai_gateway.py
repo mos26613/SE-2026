@@ -81,3 +81,55 @@ def test_no_direct_gemini_imports_outside_gateway():
         content = py_file.read_text(encoding="utf-8")
         assert "from google import genai" not in content, f"Direct genai import in {py_file}"
         assert "google.generativeai" not in content, f"Legacy generativeai import in {py_file}"
+
+def test_gateway_strips_raw_pii_before_reaching_client(monkeypatch):
+    from app.anonymizer import AnonymizationError
+
+    captured = {}
+
+    class FakeModels:
+        @staticmethod
+        def generate_content(model, contents, config):
+            captured["contents"] = contents
+            captured["system_instruction"] = config.system_instruction
+            return MagicMock(text="ok")
+
+    import google.genai
+
+    monkeypatch.setattr(google.genai, "Client", lambda **kwargs: MagicMock(models=FakeModels()))
+
+    raw_prompt = "Student dana.cohen@example.com ID 123456789 phone 050-1234567 submitted HW"
+    out = ai_gateway.generate_text(
+        prompt=raw_prompt,
+        system_instruction="Contact admin@university.edu if needed",
+        settings=_test_settings(),
+    )
+
+    assert out == "ok"
+    assert "dana.cohen@example.com" not in captured["contents"]
+    assert "123456789" not in captured["contents"]
+    assert "050-1234567" not in captured["contents"]
+    assert "admin@university.edu" not in captured["system_instruction"]
+
+    # When anonymization fails, the request is blocked and client is not called.
+    called = False
+
+    class GuardedClient:
+        def __init__(self, **kwargs):
+            nonlocal called
+            called = True
+
+    monkeypatch.setattr(google.genai, "Client", GuardedClient)
+    monkeypatch.setattr(
+        ai_gateway,
+        "apply_mandatory_anonymization",
+        lambda **kwargs: (_ for _ in ()).throw(AnonymizationError("boom")),
+    )
+
+    with pytest.raises(AnonymizationError):
+        ai_gateway.generate_text(
+            prompt="sensitive",
+            system_instruction="sys",
+            settings=_test_settings(),
+        )
+    assert called is False
