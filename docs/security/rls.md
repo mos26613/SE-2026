@@ -36,7 +36,7 @@ RLS only filters rows. Table privileges decide which commands are allowed at all
 | `authenticated` | SELECT, INSERT, UPDATE, DELETE | SELECT, INSERT, UPDATE, DELETE | SELECT, INSERT, UPDATE, DELETE |
 | `anon` | none | none | none |
 
-`TRUNCATE` ignores RLS completely, so it was revoked from `anon` and `authenticated` together with the unused `TRIGGER` and `REFERENCES` (migration `supabase/migrations/20261123173000_rls_hardening.sql`). The same migration stops anyone calling the event-trigger function `rls_auto_enable()` through the API; Postgres still runs it automatically to turn RLS on for every new table in `public`.
+`TRUNCATE` ignores RLS completely, so it was revoked from `anon` and `authenticated` together with the unused `TRIGGER` and `REFERENCES` (migration `supabase/migrations/20261123173000_rls_hardening.sql`). The same migration stops anyone calling the event-trigger function `rls_auto_enable()` through the API; Postgres still runs it automatically to turn RLS on for every new table in `public`. That function is created by Supabase (automatic RLS, chosen when the project was set up), not by our migrations, so the migration revokes it only where it exists. A local or CI database built from the migrations alone doesn't have it.
 
 **Adding a table:** RLS turns on automatically (`ensure_rls` event trigger), which blocks everything until you add a policy. Add an owner policy like the ones above and `grant select, insert, update, delete on <table> to authenticated`. Never grant `truncate`.
 
