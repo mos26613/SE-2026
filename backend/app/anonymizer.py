@@ -57,9 +57,9 @@ def is_valid_israeli_id(value: str) -> bool:
 
     Digits are multiplied alternately by 1 and 2. When a product has two digits its
     digits are added (14 -> 1 + 4 = 5). The ID is valid if the total divides by 10.
-    Accepts 9 digits, optionally written as 12345678-9.
+    Accepts 9 digits, optionally written as 12345678-9, 123 456 789 or 123-456-789.
     """
-    digits = value.replace("-", "")
+    digits = value.replace("-", "").replace(" ", "")
     if len(digits) != 9 or not digits.isdigit():
         return False
     total = 0
@@ -70,27 +70,32 @@ def is_valid_israeli_id(value: str) -> bool:
 
 
 class IsraeliIdRedactor:
-    """Finds valid Israeli ID numbers: 9 digits (123456782) or 8 digits, dash, check digit (12345678-2).
+    """Finds valid Israeli ID numbers written as 123456782, 12345678-2, 123 456 782 or 123-456-782.
 
     Only standalone numbers count: digits that are part of a longer number (a phone
     number, a timestamp, another ID) are left alone, and so are numbers whose check
-    digit is wrong. Shorter numbers padded with zeros are not matched on purpose:
-    about 1 in 10 random numbers would pass the check, so grades and course codes
-    would be masked.
+    digit is wrong. Shorter numbers padded with zeros (old 8-digit IDs) are not matched
+    on purpose: about 1 in 10 random numbers would pass the check, so grades and course
+    codes would be masked. Groups of three must use the same separator throughout, so
+    phone numbers such as 050 123 4567 or 052-123-4567 are not matched either.
     """
 
     label = "ID"
 
     # Not preceded by a digit (or "digit-"), not followed by a digit (or "-digit").
     _pattern = re.compile(r"(?<!\d)(?<!\d-)(?:\d{9}|\d{8}-\d)(?!-?\d)")
+    # 123 456 782 or 123-456-782: three groups of three with the same separator, and no
+    # digit group directly before or after (so it is not part of a longer number).
+    _grouped = re.compile(r"(?<!\d)(?<!\d[ -])\d{3}([ -])\d{3}\1\d{3}(?![ -]?\d)")
 
     def find(self, text: str) -> Iterable[Span]:
-        for match in self._pattern.finditer(text):
-            if is_valid_israeli_id(match.group()):
-                yield match.span()
+        for pattern in (self._pattern, self._grouped):
+            for match in pattern.finditer(text):
+                if is_valid_israeli_id(match.group()):
+                    yield match.span()
 
     def key(self, value: str) -> str:
-        return value.replace("-", "")
+        return value.replace("-", "").replace(" ", "")
 
 
 # Order matters only when two kinds could overlap; earlier redactors win.

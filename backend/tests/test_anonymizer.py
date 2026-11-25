@@ -13,7 +13,7 @@ OTHER_VALID_ID = "039337423"
 INVALID_ID = "123456789"  # wrong check digit
 
 
-@pytest.mark.parametrize("value", ["123456782", "039337423", "000000018", "12345678-2"])
+@pytest.mark.parametrize("value", ["123456782", "039337423", "000000018", "12345678-2", "123 456 782", "123-456-782"])
 def test_check_digit_accepts_valid_ids(value):
     assert is_valid_israeli_id(value)
 
@@ -33,6 +33,8 @@ def test_check_digit_rejects_invalid_ids(value):
         (f"({VALID_ID})", "([ID_1])"),
         (f"{VALID_ID}\n{OTHER_VALID_ID}", "[ID_1]\n[ID_2]"),
         (f"student_{VALID_ID}_hw3.pdf", "student_[ID_1]_hw3.pdf"),
+        ("ת.ז. 123 456 782 בבקשה", "ת.ז. [ID_1] בבקשה"),
+        ("ID: 123-456-782.", "ID: [ID_1]."),
     ],
 )
 def test_valid_ids_are_replaced(text, expected):
@@ -48,6 +50,11 @@ def test_valid_ids_are_replaced(text, expected):
         f"{VALID_ID}0 bytes",
         "Course 20417, grade 95, room 1234",  # short numbers are never touched
         "Due 2026-12-01T23:59:00+02:00",
+        "Call 050 123 4567 or 052-123-4567",  # phone numbers are not three groups of three
+        "123 456-782",  # mixed separators
+        "Account 1 123 456 782",  # grouped digits inside a longer number
+        "123 456 782 9",
+        "123 456 789",  # grouped, but the check digit is wrong
         "",
     ],
 )
@@ -123,3 +130,16 @@ def test_a_failing_redactor_raises_instead_of_leaking():
 
     with pytest.raises(AnonymizationError):
         Anonymizer([IsraeliIdRedactor(), BrokenRedactor()]).anonymize(f"ID {VALID_ID}")
+
+
+def test_written_forms_of_the_same_id_share_one_placeholder():
+    anon = Anonymizer()
+    text = anon.anonymize("123456782, 12345678-2, 123 456 782 and 123-456-782")
+    assert text == "[ID_1], [ID_1], [ID_1] and [ID_1]"
+    assert anon.restore("[ID_1]") == "123456782"
+
+
+def test_old_eight_digit_ids_are_not_detected_on_purpose():
+    # 12345674 is 012345674 without the leading zero, a valid ID. Matching 8-digit
+    # numbers would also mask about 1 in 10 grades, codes and counts, so it is left alone.
+    assert Anonymizer().anonymize("ID 12345674") == "ID 12345674"

@@ -117,7 +117,7 @@ What is removed so far:
 
 | Kind | Placeholder | Rule | Story |
 |---|---|---|---|
-| Israeli ID number | `[ID_n]` | 9 digits (`123456782`) or `12345678-2`, standalone, with a valid check digit. Numbers with a wrong check digit, digits inside longer numbers (phones, timestamps) and short numbers (grades, course codes) are left alone | US 5.2.1 (AB#39) |
+| Israeli ID number | `[ID_n]` | 9 digits written as `123456782`, `12345678-2`, `123 456 782` or `123-456-782`, standalone, with a valid check digit. Numbers with a wrong check digit, digits inside longer numbers (phones, timestamps) and short numbers (grades, course codes) are left alone. **Not detected on purpose:** old 8-digit IDs without the leading zero, because about 1 in 10 random 8-digit numbers would pass the check | US 5.2.1 (AB#39) |
 | Names, emails | | Not yet | US 5.2.2 (AB#40) |
 
 **Adding a new kind (US 5.2.2):** write a class with a `label` (e.g. `"EMAIL"`), a `find(text)` method that returns the `(start, end)` positions it found, and a `key(value)` method that says when two values are the same (e.g. `value.lower()` for emails). Add it to `DEFAULT_REDACTORS` in `app/anonymizer.py`. Placeholders, the same-value-same-placeholder rule and restoring come for free. If `find` raises, the whole text is refused (`AnonymizationError`) rather than sent half-cleaned.
