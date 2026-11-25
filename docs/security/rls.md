@@ -44,9 +44,21 @@ RLS only filters rows. Table privileges decide which commands are allowed at all
 
 | Criterion | How it is met | Proof |
 |---|---|---|
-| RLS enabled on `courses` and `tasks` | Enabled on `courses`, `tasks` and `users` | `select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace` |
-| Policies verify `auth.uid() = user_id` for SELECT, INSERT, UPDATE and DELETE | One `FOR ALL` policy per table with the check in both USING and WITH CHECK | Table above; `backend/tests/test_rls.py` tests each command |
+| RLS enabled on `courses` and `tasks` | Enabled on `courses`, `tasks` and `users` | `supabase/tests/rls_check.sql` checks `pg_class.relrowsecurity` directly (see below) |
+| Policies verify `auth.uid() = user_id` for SELECT, INSERT, UPDATE and DELETE | One `FOR ALL` policy per table with the check in both USING and WITH CHECK | `supabase/tests/rls_check.sql` (policy exists); `backend/tests/test_rls.py` tests each command |
 | Cross-tenant attempts return empty results or access errors | Reads, updates and deletes of another student's rows match 0 rows; inserts for another student fail with `42501`; signed-out requests get nothing | `backend/tests/test_rls.py` |
+
+## Configuration check
+
+`supabase/tests/rls_check.sql` checks the configuration itself, without test accounts. Paste it into the Supabase SQL Editor and run it; it only reads. It checks, for `users`, `courses` and `tasks`:
+
+1. RLS is enabled (`pg_class.relrowsecurity`).
+2. A `FOR ALL` policy for `authenticated` compares `auth.uid()` in both USING and WITH CHECK.
+3. There is no policy for `anon` or `public`.
+4. Neither `anon` nor `authenticated` can `TRUNCATE`.
+5. `rls_auto_enable()`, if present, can't be called by `anon` or `authenticated`.
+
+A successful run ends with the notice `rls check passed`; a problem stops it with an error naming the check. Tested on Postgres 17: it passes after the migrations and fails when RLS is turned off on a table, when a policy for `anon` is added, or when the hardening migration is missing.
 
 ## Automated tests
 
