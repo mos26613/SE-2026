@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from dataclasses import dataclass
 from starlette.responses import JSONResponse
 
 log = logging.getLogger("anonymization-middleware")
@@ -12,6 +13,13 @@ _ID_RE = re.compile(r"\b\d{9}\b")
 
 class AnonymizationError(Exception):
     """Raised when mandatory PII anonymization cannot safely complete."""
+
+
+@dataclass(frozen=True)
+class AnonymizationResult:
+    payload: object
+    ok: bool
+    reason: str | None = None
 
 
 def anonymize_text(value: str) -> str:
@@ -30,17 +38,32 @@ def anonymize_payload(payload):
         return [anonymize_payload(item) for item in payload]
     if isinstance(payload, str):
         return anonymize_text(payload)
-    return payload
+    if payload is None or isinstance(payload, (int, float, bool)):
+        return payload
+    raise AnonymizationError(f"Unsupported payload type: {type(payload).__name__}")
+
+
+def run_anonymization(payload) -> AnonymizationResult:
+    """Run PII anonymization (#39, #40, #41) and report whether AI calls are safe."""
+    try:
+        sanitized = anonymize_payload(payload)
+        return AnonymizationResult(payload=sanitized, ok=True)
+    except Exception as exc:
+        log.warning("Anonymization failed; blocking AI call and continuing without AI fields: %s", exc)
+        return AnonymizationResult(payload=payload, ok=False, reason=str(exc))
 
 
 class MandatoryAnonymizationMiddleware:
-    """ASGI middleware enforcing mandatory PII anonymization on protected paths."""
+    """ASGI middleware enforcing PII anonymization (#39, #40, #41) on /api/tasks/sync."""
 
     def __init__(self, app, protected_paths: tuple[str, ...] = ("/api/tasks/sync",)):
         self.app = app
         self.protected_paths = protected_paths
 
     async def __call__(self, scope, receive, send):
+        state = scope.setdefault("state", {})
+        state.setdefault("anonymization_ok", True)
+
         if scope.get("type") == "http" and scope.get("method") in {"POST", "PUT", "PATCH"}:
             path = scope.get("path", "")
             if path.startswith(self.protected_paths):
@@ -60,27 +83,35 @@ class MandatoryAnonymizationMiddleware:
                 if raw_body:
                     try:
                         parsed = json.loads(raw_body.decode("utf-8"))
-                        sanitized = anonymize_payload(parsed)
-                        sanitized_bytes = json.dumps(sanitized, ensure_ascii=False).encode("utf-8")
-                    except Exception:
-                        log.warning("Mandatory anonymization failed; blocking request on %s", path)
+                    except Exception as exc:
+                        log.warning("Invalid JSON payload on %s; blocking request: %s", path, exc)
                         response = JSONResponse(
                             status_code=422,
-                            content={"detail": "Request blocked: mandatory anonymization failed"},
+                            content={"detail": "Request blocked: invalid JSON payload"},
                         )
                         await response(scope, receive, send)
                         return
 
+                    result = run_anonymization(parsed)
+                    state["anonymization_ok"] = result.ok
+                    if not result.ok:
+                        state["anonymization_reason"] = result.reason
+
+                    body_to_forward = (
+                        json.dumps(result.payload, ensure_ascii=False).encode("utf-8")
+                        if result.ok
+                        else raw_body
+                    )
                     sent = False
 
-                    async def sanitized_receive():
+                    async def forwarded_receive():
                         nonlocal sent
                         if not sent:
                             sent = True
-                            return {"type": "http.request", "body": sanitized_bytes, "more_body": False}
+                            return {"type": "http.request", "body": body_to_forward, "more_body": False}
                         return {"type": "http.request", "body": b"", "more_body": False}
 
-                    await self.app(scope, sanitized_receive, send)
+                    await self.app(scope, forwarded_receive, send)
                     return
 
         await self.app(scope, receive, send)
