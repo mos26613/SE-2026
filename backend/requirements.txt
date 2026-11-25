@@ -8,3 +8,4 @@ tzdata==2026.6  # time zone data; Windows needs it for Asia/Jerusalem
 # tests
 pytest==9.2.0
 httpx==0.28.1
+google-generativeai==0.8.3

@@ -22,6 +22,7 @@ from .models import AIResult, SyncRequest, SyncResponse, TaskIn, TaskOut
 from .middleware.anonymization import MandatoryAnonymizationMiddleware
 
 
+
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("task-api")
 
@@ -40,6 +41,9 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 app.add_middleware(MandatoryAnonymizationMiddleware)
+
+from app.routers import ai
+app.include_router(ai.router)
 
 # One shared in-memory store for dev mode.
 _memory_store = MemoryStore()
@@ -139,3 +143,4 @@ def list_tasks(
     except Exception:
         log.exception("Reading tasks failed")
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not read tasks from the database")
+
