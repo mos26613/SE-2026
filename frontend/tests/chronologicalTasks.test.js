@@ -1,8 +1,8 @@
-﻿import assert from "node:assert/strict";
+import { describe, expect, it } from "vitest";
 import {
-  sortTasksChronologically,
   getDateSectionLabel,
   groupTasksChronologically,
+  sortTasksChronologically,
 } from "../src/chronologicalTasks.js";
 
 const referenceNow = new Date("2026-11-26T10:00:00");
@@ -16,23 +16,37 @@ const sampleTasks = [
   { id: "this-week", title: "Project Milestone", due_date: "2026-11-30T15:00:00" },
 ];
 
-const sorted = sortTasksChronologically(sampleTasks);
-assert.deepEqual(
-  sorted.map((t) => t.id),
-  ["overdue", "today", "tomorrow", "this-week", "later", "no-date"]
-);
+describe("chronologicalTasks (AB#23)", () => {
+  it("sorts tasks chronologically by deadline and puts tasks without deadline last", () => {
+    const sorted = sortTasksChronologically(sampleTasks);
+    expect(sorted.map((t) => t.id)).toEqual([
+      "overdue",
+      "today",
+      "tomorrow",
+      "this-week",
+      "later",
+      "no-date",
+    ]);
+  });
 
-assert.equal(getDateSectionLabel(sampleTasks[2], referenceNow), "Today");
-assert.equal(getDateSectionLabel(sampleTasks[3], referenceNow), "Tomorrow");
-assert.equal(getDateSectionLabel(sampleTasks[4], referenceNow), "Overdue");
-assert.equal(getDateSectionLabel(sampleTasks[5], referenceNow), "This Week");
-assert.equal(getDateSectionLabel(sampleTasks[0], referenceNow), "Later");
-assert.equal(getDateSectionLabel(sampleTasks[1], referenceNow), "No Deadline");
+  it("assigns accurate date section labels", () => {
+    expect(getDateSectionLabel(sampleTasks[2], referenceNow)).toBe("Today");
+    expect(getDateSectionLabel(sampleTasks[3], referenceNow)).toBe("Tomorrow");
+    expect(getDateSectionLabel(sampleTasks[4], referenceNow)).toBe("Overdue");
+    expect(getDateSectionLabel(sampleTasks[5], referenceNow)).toBe("This Week");
+    expect(getDateSectionLabel(sampleTasks[0], referenceNow)).toBe("Later");
+    expect(getDateSectionLabel(sampleTasks[1], referenceNow)).toBe("No Deadline");
+  });
 
-const grouped = groupTasksChronologically(sampleTasks, referenceNow);
-assert.deepEqual(
-  grouped.map((g) => g.section),
-  ["Overdue", "Today", "Tomorrow", "This Week", "Later", "No Deadline"]
-);
-
-console.log("All chronological sorting and grouping tests passed!");
+  it("groups tasks into non-empty sections in chronological order", () => {
+    const grouped = groupTasksChronologically(sampleTasks, referenceNow);
+    expect(grouped.map((g) => g.section)).toEqual([
+      "Overdue",
+      "Today",
+      "Tomorrow",
+      "This Week",
+      "Later",
+      "No Deadline",
+    ]);
+  });
+});
