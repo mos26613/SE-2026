@@ -113,3 +113,15 @@ test("fetchEventsFromMoodle fails clearly so content.js can fall back to the DOM
   );
   await assert.rejects(M.fetchEventsFromMoodle({ baseUrl: "https://m", sesskey: "KEY123abc", fetchFn: fakeFetch([{ status: 503, body: {} }]) }), /503/);
 });
+
+test("isPassiveFetchDue allows one Moodle request per 15 minutes on page loads", () => {
+  const now = Date.UTC(2026, 10, 25, 12, 0);
+  const minutes = (n) => n * 60 * 1000;
+  assert.equal(M.PASSIVE_FETCH_INTERVAL_MS, minutes(15));
+  assert.equal(M.isPassiveFetchDue(undefined, now), true); // never asked yet
+  assert.equal(M.isPassiveFetchDue(0, now), true);
+  assert.equal(M.isPassiveFetchDue(now - minutes(1), now), false);
+  assert.equal(M.isPassiveFetchDue(now - minutes(14), now), false);
+  assert.equal(M.isPassiveFetchDue(now - minutes(15), now), true);
+  assert.equal(M.isPassiveFetchDue(now + minutes(60), now), true); // clock moved back
+});
