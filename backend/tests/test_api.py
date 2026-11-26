@@ -393,3 +393,75 @@ def test_sync_empty_batch_and_store_failure(client, monkeypatch):
     monkeypatch.setattr(main._memory_store, "upsert", _boom_upsert)
     err_resp = client.post("/api/tasks/sync", json={"tasks": [TASKS[0]]})
     assert err_resp.status_code == 502
+
+
+def _recording_gemini(monkeypatch, response_text: str) -> list:
+    """Replace Gemini with a fake that records exactly what would be sent to Google."""
+    sent = []
+
+    class FakeResponse:
+        text = response_text
+
+    class FakeClient:
+        class models:
+            @staticmethod
+            def generate_content(model, contents, config):
+                sent.append(contents)
+                return FakeResponse()
+
+    import google.genai
+
+    monkeypatch.setattr(google.genai, "Client", lambda **kwargs: FakeClient())
+    return sent
+
+
+def test_id_numbers_never_reach_gemini_and_come_back_in_the_summary(client, monkeypatch):
+    """User Story 5.2.1: valid Israeli ID numbers are replaced before the AI call."""
+    sent = _recording_gemini(
+        monkeypatch,
+        '[{"moodle_id": "301", "is_relevant": true, "category": "other", "summary": "Submit appeal for [ID_1]"}]',
+    )
+    main.app.dependency_overrides[get_settings] = lambda: dev_settings(gemini_api_key="fake-key")
+
+    task = {
+        "moodle_id": "301",
+        "title": "ערעור - ת.ז. 123456782",
+        "course_name": "Algorithms",
+        "description": "Student 123456782 (also 12345678-2) asks to recheck question 3. Ref 123456789.",
+    }
+    r = client.post("/api/tasks/sync", json={"tasks": [task]})
+    assert r.status_code == 200
+    assert r.json()["ai_applied"] is True
+
+    assert len(sent) == 1
+    assert "123456782" not in sent[0] and "12345678-2" not in sent[0]
+    assert "[ID_1]" in sent[0]
+    assert "123456789" in sent[0]  # wrong check digit: not an ID, left alone
+    assert '"moodle_id": "301"' in sent[0]  # needed to match answers back, never changed
+
+    saved = client.get("/api/tasks").json()[0]
+    assert saved["title"] == task["title"]  # our own database keeps the real text
+    assert saved["ai_summary"] == "Submit appeal for 123456782"  # restored on our server
+
+
+def test_if_anonymization_fails_gemini_is_skipped_but_tasks_are_saved(client, monkeypatch):
+    from app import anonymizer
+
+    class BrokenRedactor:
+        label = "ID"
+
+        def find(self, text):
+            raise RuntimeError("bug")
+
+        def key(self, value):
+            return value
+
+    sent = _recording_gemini(monkeypatch, "[]")
+    monkeypatch.setattr(anonymizer, "DEFAULT_REDACTORS", [BrokenRedactor()])
+    main.app.dependency_overrides[get_settings] = lambda: dev_settings(gemini_api_key="fake-key")
+
+    r = client.post("/api/tasks/sync", json={"tasks": [{"moodle_id": "1", "title": "ID 123456782"}]})
+    assert r.status_code == 200
+    assert r.json()["ai_applied"] is False
+    assert sent == []  # nothing was sent to Google
+    assert len(client.get("/api/tasks").json()) == 1

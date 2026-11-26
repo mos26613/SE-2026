@@ -14,7 +14,7 @@ React dashboard  ◀──GET /api/tasks──────── Supabase
 3. Everything is saved to Supabase, one row per student per Moodle assignment, so a re-sync updates instead of duplicating.
 4. The dashboard reads the student's tasks back, soonest deadline first.
 
-Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Partly covers US 3.1.3, 3.2.1, 3.2.2 and 5.1.1 (see "Not done yet").
+Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37), US 5.2.1 (AB#39). Partly covers US 3.1.3, 3.2.1, 3.2.2 and 5.1.1 (see "Not done yet").
 
 ## Layout
 
@@ -22,13 +22,15 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 |---|---|
 | `app/main.py` | The endpoints |
 | `app/models.py` | Request/response shapes. Bad data is rejected automatically (422). Dates without a time zone are treated as Israel time |
-| `app/ai_filter.py` | The Gemini step. Never blocks saving: if Gemini is missing, busy or fails, tasks are saved without AI fields (one automatic retry on 5xx) |
+| `app/anonymizer.py` | Removes personal data (Israeli ID numbers so far) before anything is sent to Gemini, and puts it back in Gemini's answer. See "Anonymization" below |
+| `app/ai_filter.py` | The Gemini step. Anonymizes the prompt first. Never blocks saving: if Gemini is missing, busy or fails, tasks are saved without AI fields (one automatic retry on 5xx) |
 | `app/db.py` | Saving and reading. `SupabaseStore` for the real database, `MemoryStore` for dev mode and tests. The only file to change if the table's columns differ |
 | `app/auth.py` | Checks the student's Supabase login token |
 | `app/config.py` | Settings from the root `.env` |
 | `tests/test_api.py` | End-to-end API tests with an in-memory store and a fake Gemini |
 | `tests/test_query_shape.py` | Checks the task queries keep the shape the database indexes expect ([docs/performance/indexing.md](../docs/performance/indexing.md)) |
 | `tests/test_rls.py` | Row Level Security tests against the real Supabase project with two test students. Skipped unless configured, see [docs/security/rls.md](../docs/security/rls.md) |
+| `tests/test_anonymizer.py` | Tests for the anonymization rules |
 
 ## Endpoints
 
@@ -105,6 +107,26 @@ Notes:
 - **Model:** `GEMINI_MODEL` picks the model (default `gemini-3.5-flash-lite`). `gemini-2.5-flash` is no longer available to new users, and `gemini-3.8-flash` kept timing out on the free tier. If you get "model not found", pick a current Flash model from https://ai.google.dev/gemini-api/docs/models.
 - `504 DEADLINE_EXCEEDED` / `503 UNAVAILABLE`: Gemini was busy; the API retries once. `429 RESOURCE_EXHAUSTED`: free-tier limit, wait a minute. In all cases tasks are still saved, just without AI fields.
 
+## Anonymization (before Gemini)
+
+ADR 0003 says no personal data may reach the AI provider. `app/anonymizer.py` does this on our server:
+
+1. Before the Gemini call, every free-text field (title, course name, description) goes through one `Anonymizer`. Each piece of personal data is replaced with a placeholder such as `[ID_1]`. The same value gets the same placeholder everywhere in the request.
+2. Gemini only ever sees the placeholders. `moodle_id` is not changed, because it is Moodle's own number and we need it to match answers back.
+3. When the answer comes back, the placeholders in Gemini's summary are replaced with the real values. The database always keeps the original text.
+4. If anonymization fails for any reason, Gemini is **not called**. The sync still saves the tasks, just without AI fields (`ai_applied: false`), like any other AI failure.
+
+What is removed so far:
+
+| Kind | Placeholder | Rule | Story |
+|---|---|---|---|
+| Israeli ID number | `[ID_n]` | 9 digits written as `123456782`, `12345678-2`, `123 456 782` or `123-456-782`, standalone, with a valid check digit. Numbers with a wrong check digit, digits inside longer numbers (phones, timestamps) and short numbers (grades, course codes) are left alone. **Not detected on purpose:** old 8-digit IDs without the leading zero, because about 1 in 10 random 8-digit numbers would pass the check | US 5.2.1 (AB#39) |
+| Names, emails | | Not yet | US 5.2.2 (AB#40) |
+
+**Adding a new kind (US 5.2.2):** write a class with a `label` (e.g. `"EMAIL"`), a `find(text)` method that returns the `(start, end)` positions it found, and a `key(value)` method that says when two values are the same (e.g. `value.lower()` for emails). Add it to `DEFAULT_REDACTORS` in `app/anonymizer.py`. Placeholders, the same-value-same-placeholder rule and restoring come for free. If `find` raises, the whole text is refused (`AnonymizationError`) rather than sent half-cleaned.
+
+**The mandatory middleware (US 5.2.3, AB#41)** can wrap any AI call the same way `ai_filter.py` does: create an `Anonymizer`, call `anonymize()` on everything sent, `restore()` on what comes back, and refuse the call on `AnonymizationError`.
+
 ## Connecting to Supabase
 
 1. In the Supabase dashboard open **Settings → API** and copy the **Project URL** and the **anon public** key into the root `.env` (`SUPABASE_URL`, `SUPABASE_KEY`). Never the `service_role` key.
@@ -119,7 +141,7 @@ The schema is owned by Epic 1 (project `dsclfcysdrjchhyynggt`). What the backend
 
 ## Not done yet
 
-- **PII anonymization (US 5.2.x, ADR 0003):** task titles and descriptions are currently sent to Gemini as they are. A description could contain a lecturer's name or email, so the anonymization middleware must be added before this goes to production.
+- **PII anonymization (US 5.2.2, 5.2.3, ADR 0003):** ID numbers are now removed before Gemini (see "Anonymization"). Names and email addresses are still sent as they are, so US 5.2.2 must be done before this goes to production.
 - **Real Supabase test (US 3.1.3, 3.2.1, 3.2.2):** the Supabase code matches Epic 1's schema and is unit-tested with fakes, but hasn't run against the real project yet.
 - **"Recently Modified" badge (Epic 3):** the backend sets `is_modified` (US 3.3.1), but nothing clears it yet. Clearing it after the student first views the task, and showing the red badge, belong to the dashboard.
 - **Large syncs:** all tasks go to Gemini in one request, and Gemini is called again on every re-sync. Fine for tens of tasks; batching the AI call, and not sending unchanged tasks to Gemini, would help once real extension data arrives. (Unchanged tasks are already not rewritten in the database, see `app/change_detection.py`.)
