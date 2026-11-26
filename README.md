@@ -164,6 +164,7 @@ All settings and secrets live in one file at the repository root: `.env`. It is 
 | `GEMINI_API_KEY` | Google AI key. Empty = run without the AI step | Yes |
 | `GEMINI_MODEL`, `GEMINI_THINKING_LEVEL`, `GEMINI_TIMEOUT_SECONDS` | Gemini behavior | No |
 | `CORS_ORIGINS` | Browser addresses allowed to call the API | No |
+| `FRONTEND_URL` | Dashboard address the verification email links back to. Also add it in Supabase, Authentication, URL Configuration, Redirect URLs | No |
 | `PORT`, `ENVIRONMENT` | Server settings | No |
 
 The backend reads them with `pydantic-settings` (`backend/app/config.py`), so the code contains no key. In GitHub Actions, secrets come from GitHub Secrets, not from files.
