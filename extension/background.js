@@ -1,16 +1,29 @@
+import "./session.js"; // Moodle session cookie detection (US 2.4.1); sets globalThis.TaskHubSession
+
 // Configuration constants - update API_BASE_URL for production deployment
 const API_BASE_URL = "http://localhost:8000/api";
+// The Moodle site whose login cookie we watch (same host as host_permissions in manifest.json).
+const MOODLE_URL = "https://moodle.jct.ac.il/";
+const Session = globalThis.TaskHubSession;
 const SYNC_THROTTLE_MS = 15 * 60 * 1000; // 15 minutes throttle for passive sync (US 2.2.3)
 
 // Initialize default extension state on installation
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({
+chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.storage.local.set({
     syncStatus: "NOT_SYNCED",
     lastSyncTime: null,
     lastPassiveRun: 0,
     jwtToken: null
   });
+  await refreshSessionState();
 });
+
+// Read the Moodle login again when Chrome starts, in case the cookie changed while it was closed.
+chrome.runtime.onStartup.addListener(refreshSessionState);
+
+// Fire an authentication state update whenever the MoodleSession cookie is added or removed (US 2.4.1).
+// Registered at the top level, as Manifest V3 service workers require.
+chrome.cookies.onChanged.addListener(Session.createCookieListener(chrome, MOODLE_URL, applySessionState));
 
 // Listen for messages from content scripts and popup UI (US 2.1.4)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -36,16 +49,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Read the Moodle login cookie and store the result (US 2.4.1).
+async function refreshSessionState() {
+  try {
+    await applySessionState(await Session.readSessionState(chrome, MOODLE_URL));
+  } catch (error) {
+    console.error("[TaskHub] Could not read the Moodle session cookie:", error);
+  }
+}
+
+// Save the authentication state (`moodleSession`: ACTIVE / MISSING / EXPIRED and the expiry date)
+// and tell the rest of the extension. Does nothing when nothing changed, so a cookie that is
+// renewed with the same expiry does not cause noise.
+async function applySessionState(state) {
+  const stored = await chrome.storage.local.get(["moodleSession", "syncStatus"]);
+  if (Session.sameSession(stored.moodleSession, state)) return false;
+
+  const update = { moodleSession: state };
+  if (!state.active) {
+    update.syncStatus = "SESSION_EXPIRED"; // the popup then asks the student to log in to Moodle
+  } else if (stored.syncStatus === "SESSION_EXPIRED") {
+    update.syncStatus = "NOT_SYNCED"; // logged in again: clear the warning, the next sync works
+  }
+  await chrome.storage.local.set(update);
+
+  // The popup listens for this. With no popup open there is no receiver, which is fine.
+  try {
+    const sent = chrome.runtime.sendMessage({ type: "AUTH_STATE_CHANGED", state });
+    if (sent && sent.catch) sent.catch(() => {});
+  } catch (error) {
+    // no receiver
+  }
+  return true;
+}
+
 // Validate active MoodleSession cookie before syncing (US 2.4.1 & 2.4.2)
 async function checkMoodleSession(url) {
   try {
     if (!url) return false;
-    // The cookie is "MoodleSession" plus a site-specific suffix on many Moodle sites
-    // (on moodle.jct.ac.il too), so match by prefix instead of the exact name.
-    const cookies = await chrome.cookies.getAll({ url: url });
-    const cookie = cookies.find((c) => c.name.startsWith("MoodleSession"));
-
-    if (!cookie || (cookie.expirationDate && cookie.expirationDate * 1000 < Date.now())) {
+    const state = await Session.readSessionState(chrome, url);
+    await applySessionState(state);
+    if (!state.active) {
       await updateStatus("SESSION_EXPIRED");
       return false;
     }
