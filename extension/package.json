@@ -1,0 +1,11 @@
+{
+  "name": "task-hub-extension-tests",
+  "private": true,
+  "description": "Test tooling only. The extension itself has no dependencies; nothing here is loaded by Chrome.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\""
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}
