@@ -1,6 +1,6 @@
 # Smart Student Task Hub
 
-> **Status:** 🚧 Phase A–B (initiation and backlog) is complete. Implementation starts in Sprint 1. There is no application code in the repository yet.
+> **Status:** 🚧 Sprint 1 in progress. The backend sync API (FastAPI, Gemini filter, Supabase storage) is in [`backend/`](backend/README.md). The Chrome extension and the React dashboard are still to come.
 
 **Smart Student Task Hub** (Azure DevOps project: *Academic Task Manager & AI Assistant*) brings every assignment, quiz and deadline from a student's Moodle courses into one dashboard.
 
