@@ -14,7 +14,7 @@ comment on table public.tasks is
 
 -- 001 described is_modified as "manual edit by the user". In this project the column means
 -- something else: Moodle details of the task (for example the due date) changed after we
--- first saved it. The dashboard uses it for the "Recently Modified" badge. Nothing sets it
--- yet: change detection is User Story 3.3.1.
+-- first saved it. The dashboard uses it for the "Recently Modified" badge. The sync sets it
+-- (User Story 3.3.1) when a task comes back with a different title, description or due date.
 comment on column public.tasks.is_modified is
   'True when the task details changed on Moodle after it was first saved (for example the lecturer moved the due date). Drives the "Recently Modified" badge. Set by change detection (US 3.3.1).';

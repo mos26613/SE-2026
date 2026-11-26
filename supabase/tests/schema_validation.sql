@@ -2,7 +2,8 @@
 --
 -- How to run: Supabase dashboard -> SQL Editor -> paste this file -> Run.
 -- It changes nothing: everything happens in a transaction that is rolled back at the end.
--- A successful run ends with the notice "schema validation passed".
+-- A successful run shows one result row: "schema validation passed". If a check fails, the script
+-- stops with an error that names the check, and that row is not shown.
 
 begin;
 
@@ -74,3 +75,7 @@ end;
 $$;
 
 rollback;
+
+-- Shown only when every check above passed (an error would have stopped the script before this line).
+-- It comes after the rollback because the SQL Editor displays the result of the last statement.
+select 'schema validation passed' as result;

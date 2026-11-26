@@ -77,8 +77,9 @@ can only point to a course of the same student. The backend reads the name throu
 key when one of its columns is empty, so a task without a course is allowed.
 
 **`is_modified`.** It means that the task details changed on Moodle after we first saved them, for
-example the lecturer moved the due date. The dashboard uses it for the "Recently Modified" badge. Nothing
-sets it yet: change detection is User Story 3.3.1.
+example the lecturer moved the due date. The dashboard uses it for the "Recently Modified" badge. The sync
+sets it (User Story 3.3.1) when a task comes back with a different title, description or due date.
+Nothing clears it yet.
 
 **One row per assignment.** The `(user_id, moodle_id)` uniqueness lets the sync update an existing task
 instead of creating a duplicate.
