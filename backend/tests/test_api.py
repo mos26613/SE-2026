@@ -64,7 +64,7 @@ def test_sync_then_list_full_flow(client, monkeypatch):
 
     r = client.post("/api/tasks/sync", json={"tasks": TASKS})
     assert r.status_code == 200
-    assert r.json() == {"received": 3, "created": 3, "updated": 0, "filtered_out": 1, "ai_applied": True}
+    assert r.json() == {"received": 3, "created": 3, "updated": 0, "unchanged": 0, "filtered_out": 1, "ai_applied": True}
 
     tasks = client.get("/api/tasks").json()
     # The forum post was filtered out, the rest come back soonest deadline first.
@@ -382,6 +382,7 @@ def test_sync_empty_batch_and_store_failure(client, monkeypatch):
         "received": 0,
         "created": 0,
         "updated": 0,
+        "unchanged": 0,
         "filtered_out": 0,
         "ai_applied": False,
     }
