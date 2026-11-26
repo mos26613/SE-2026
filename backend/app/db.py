@@ -20,12 +20,16 @@ from .models import TaskOut
 # The tasks columns we write. Must match the Supabase table.
 COLUMNS = [
     "moodle_id", "title", "moodle_course_id", "description", "due_date", "moodle_url",
-    "is_relevant", "ai_category", "ai_priority", "ai_summary",
+    "is_relevant", "ai_category", "ai_priority", "ai_summary", "is_modified",
 ]
+
+# What we read back to tell whether an incoming task changed (see change_detection.py).
+# ai_category tells us whether the AI has already looked at the task.
+COMPARE_COLUMNS = "moodle_id,title,description,due_date,ai_category"
 
 
 class TaskStore(Protocol):
-    def existing_ids(self, user_id: str, moodle_ids: list[str]) -> set[str]: ...
+    def existing_tasks(self, user_id: str, moodle_ids: list[str]) -> dict[str, dict]: ...
     def upsert(self, user_id: str, rows: list[dict]) -> None: ...
     def list_tasks(self, user_id: str, include_filtered: bool) -> list[TaskOut]: ...
 
@@ -39,9 +43,9 @@ class MemoryStore:
     def __init__(self) -> None:
         self._data: dict[str, dict[str, dict]] = {}  # user_id -> moodle_id -> row
 
-    def existing_ids(self, user_id: str, moodle_ids: list[str]) -> set[str]:
+    def existing_tasks(self, user_id: str, moodle_ids: list[str]) -> dict[str, dict]:
         mine = self._data.get(user_id, {})
-        return {m for m in moodle_ids if m in mine}
+        return {m: dict(mine[m]) for m in moodle_ids if m in mine}
 
     def upsert(self, user_id: str, rows: list[dict]) -> None:
         mine = self._data.setdefault(user_id, {})
@@ -66,17 +70,18 @@ class SupabaseStore:
         self._table = settings.tasks_table
         self._courses = settings.courses_table
 
-    def existing_ids(self, user_id: str, moodle_ids: list[str]) -> set[str]:
+    def existing_tasks(self, user_id: str, moodle_ids: list[str]) -> dict[str, dict]:
+        """The stored version of the given tasks, in ONE query, keyed by moodle_id."""
         if not moodle_ids:
-            return set()
+            return {}
         res = (
             self._client.table(self._table)
-            .select("moodle_id")
+            .select(COMPARE_COLUMNS)
             .eq("user_id", user_id)
             .in_("moodle_id", moodle_ids)
             .execute()
         )
-        return {r["moodle_id"] for r in res.data}
+        return {r["moodle_id"]: r for r in res.data}
 
     def _save_courses(self, user_id: str, rows: list[dict]) -> None:
         """Make sure every course a task points to exists, so the tasks -> courses foreign key holds."""

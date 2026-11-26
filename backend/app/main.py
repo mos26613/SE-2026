@@ -2,8 +2,9 @@
 
 Flow for every sync:
   Chrome extension --POST /api/tasks/sync--> validate (models.py)
+                                           -> compare with saved tasks (change_detection.py)
                                            -> Gemini filter (ai_filter.py)
-                                           -> save to Supabase (db.py)
+                                           -> save new and changed tasks to Supabase (db.py)
   React dashboard  --GET /api/tasks------> read from Supabase
 
 Run locally:   python -m uvicorn app.main:app --reload
@@ -16,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import ai_filter
 from .auth import CurrentUser, get_current_user
+from .change_detection import compare_with_stored
 from .config import Settings, get_settings
 from .db import MemoryStore, SupabaseStore, TaskStore
 from .models import AIResult, SyncRequest, SyncResponse, TaskIn, TaskOut
@@ -105,20 +107,43 @@ def sync_tasks(
     # The same assignment twice in one batch: keep the last copy.
     unique = list({t.moodle_id: t for t in body.tasks}.values())
 
+    # What we already have for these tasks: one query for the whole batch.
+    try:
+        stored = store.existing_tasks(user.id, [t.moodle_id for t in unique])
+    except Exception:
+        log.exception("Reading saved tasks failed")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not save tasks to the database")
+
     ai_results = ai_filter.classify_tasks(unique, settings)
     rows = [_to_row(t, ai_results.get(t.moodle_id)) for t in unique]
 
+    # Which tasks are new, which changed on Moodle, and which came back identical (US 3.3.1).
+    diff = compare_with_stored(stored, rows)
+    new_ids, modified_ids = set(diff.new), set(diff.modified)
+
+    to_save = []
+    for row in rows:
+        moodle_id = row["moodle_id"]
+        if moodle_id in modified_ids:
+            to_save.append({**row, "is_modified": True})  # the "Recently Modified" flag
+        elif moodle_id in new_ids:
+            to_save.append(row)
+        elif "ai_category" in row and stored[moodle_id].get("ai_category") is None:
+            # Identical on Moodle, but the AI has not looked at it before: save only to add its verdict.
+            to_save.append(row)
+        # Otherwise the task is identical to what we have: no database write.
+
     try:
-        already_there = store.existing_ids(user.id, [t.moodle_id for t in unique])
-        store.upsert(user.id, rows)
+        store.upsert(user.id, to_save)
     except Exception:
         log.exception("Saving tasks failed")
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not save tasks to the database")
 
     return SyncResponse(
         received=len(body.tasks),
-        created=len(unique) - len(already_there),
-        updated=len(already_there),
+        created=len(diff.new),
+        updated=len(diff.modified),
+        unchanged=len(diff.unchanged),
         filtered_out=sum(1 for r in ai_results.values() if not r.is_relevant),
         ai_applied=bool(ai_results),
     )

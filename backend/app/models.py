@@ -64,11 +64,13 @@ class TaskOut(BaseModel):
     ai_priority: Optional[int] = None
     ai_summary: Optional[str] = None
     status: str = "open"
+    is_modified: bool = Field(False, description="The details changed on Moodle after we first saved the task")
 
 
 class SyncResponse(BaseModel):
     received: int
     created: int
-    updated: int
+    updated: int = Field(..., description="Saved tasks whose title, description or due date changed on Moodle (flagged as modified)")
+    unchanged: int = Field(0, description="Saved tasks that came back identical; not rewritten")
     filtered_out: int = Field(..., description="Tasks Gemini marked as not relevant (still saved, hidden by default)")
     ai_applied: bool = Field(..., description="False if Gemini was skipped or failed; tasks were saved anyway")
