@@ -4,6 +4,10 @@
   "private": true,
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
   }
 }
