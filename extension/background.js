@@ -100,8 +100,11 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
     });
 
     if (response.status === 401 || response.status === 403) {
-      await updateStatus("SESSION_EXPIRED");
-      throw new Error("Unauthorized: Please verify your Task Hub login token.");
+      // Our own login (the Task Hub token) expired, not the Moodle session: telling the
+      // student to log in to Moodle again would not help.
+      const authError = new Error("Your Task Hub login expired. Paste a new token below.");
+      authError.status = "AUTH_EXPIRED";
+      throw authError;
     }
 
     if (!response.ok) {
@@ -123,7 +126,7 @@ async function handleScrapedData(tasks, tabUrl, isManual = false) {
     return result;
   } catch (error) {
     console.error("[TaskHub] Sync failed:", error);
-    await updateStatus("ERROR");
+    await updateStatus(error.status || "ERROR");
     chrome.action.setBadgeText({ text: "!" });
     chrome.action.setBadgeBackgroundColor({ color: "#EF4444" });
     throw error;

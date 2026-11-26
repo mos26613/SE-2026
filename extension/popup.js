@@ -48,6 +48,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         statusText.textContent = "סשן פג תוקף";
         sessionAlert.style.display = "block";
         break;
+      case "AUTH_EXPIRED":
+        statusBadge.classList.add("expired");
+        statusText.textContent = "התחברות פגה";
+        break;
       case "ERROR":
         statusBadge.classList.add("expired");
         statusText.textContent = "שגיאת סנכרון";
