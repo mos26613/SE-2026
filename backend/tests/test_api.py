@@ -371,3 +371,28 @@ def test_supabase_key_accepts_both_env_names(monkeypatch):
     monkeypatch.delenv("SUPABASE_KEY")
     monkeypatch.setenv("SUPABASE_ANON_KEY", "old-name")
     assert Settings(_env_file=None).supabase_key == "old-name"
+
+
+def test_ai_gateway_centralizes_classification_and_fallback(client, monkeypatch):
+    from app import ai_gateway
+
+    called = []
+
+    def _fake_gateway(tasks, settings):
+        called.append([t.moodle_id for t in tasks])
+        return {
+            t.moodle_id: AIResult(
+                moodle_id=t.moodle_id,
+                is_relevant=True,
+                category="project",
+                priority=3,
+                summary="Gateway summary",
+            )
+            for t in tasks
+        }
+
+    monkeypatch.setattr(ai_gateway, "classify_tasks_via_gateway", _fake_gateway)
+    r = client.post("/api/tasks/sync", json={"tasks": TASKS[:2]})
+    assert r.status_code == 200
+    assert r.json()["ai_applied"] is True
+    assert called == [["101", "102"]]
