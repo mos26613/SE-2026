@@ -24,8 +24,9 @@ COLUMNS = [
 ]
 
 # What we read back to tell whether an incoming task changed (see change_detection.py).
-# ai_category tells us whether the AI has already looked at the task.
-COMPARE_COLUMNS = "moodle_id,title,description,due_date,ai_category"
+# ai_category tells us whether the AI has already looked at the task. The course name comes
+# from the courses table (added in existing_tasks), like in list_tasks.
+COMPARE_COLUMNS = "moodle_id,title,description,due_date,moodle_url,moodle_course_id,ai_category"
 
 
 class TaskStore(Protocol):
@@ -76,12 +77,16 @@ class SupabaseStore:
             return {}
         res = (
             self._client.table(self._table)
-            .select(COMPARE_COLUMNS)
+            .select(f"{COMPARE_COLUMNS},{self._courses}(name)")
             .eq("user_id", user_id)
             .in_("moodle_id", moodle_ids)
             .execute()
         )
-        return {r["moodle_id"]: r for r in res.data}
+        found = {}
+        for row in res.data:
+            course = row.pop(self._courses, None) or {}
+            found[row["moodle_id"]] = {**row, "course_name": course.get("name")}
+        return found
 
     def _save_courses(self, user_id: str, rows: list[dict]) -> None:
         """Make sure every course a task points to exists, so the tasks -> courses foreign key holds."""

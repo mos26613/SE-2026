@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import ai_filter, main
-from app.change_detection import changed_fields, compare_with_stored
+from app.change_detection import changed_fields, compare_with_stored, refreshed_fields
 from app.config import get_settings
 from app.db import COMPARE_COLUMNS, MemoryStore, SupabaseStore
 
@@ -50,10 +50,21 @@ def test_extra_spaces_and_line_breaks_are_not_a_change():
     assert changed_fields(HW, noisy) == []
 
 
-def test_empty_description_and_missing_description_are_the_same():
-    assert changed_fields({**HW, "description": None}, {**HW, "description": ""}) == []
-    assert changed_fields({**HW, "description": None}, {**HW, "description": "   "}) == []
-    assert changed_fields({**HW, "description": None}, {**HW, "description": "now has text"}) == ["description"]
+def test_an_empty_description_is_unknown_not_a_change():
+    """The calendar page sends no description; the assignment page sends the instructions."""
+    for empty in (None, "", "   "):
+        assert changed_fields(HW, {**HW, "description": empty}) == []  # saved text, nothing sent
+        assert changed_fields({**HW, "description": empty}, {**HW, "description": None}) == []  # empty both sides
+
+
+def test_a_first_description_is_filled_in_without_flagging_the_task():
+    stored = {**HW, "description": None}
+    assert changed_fields(stored, HW) == []
+    assert refreshed_fields(stored, HW) == ["description"]
+
+
+def test_a_really_different_description_is_still_a_change():
+    assert changed_fields(HW, {**HW, "description": "Chapter 9"}) == ["description"]
 
 
 def test_the_same_moment_in_another_time_zone_is_not_a_change():
@@ -104,6 +115,24 @@ def test_batch_comparison_sorts_tasks_into_new_modified_unchanged():
     ]
     diff = compare_with_stored(stored, incoming)
     assert (diff.new, diff.modified, diff.unchanged) == (["3"], ["2"], ["1"])
+
+
+def test_a_new_link_or_course_is_saved_quietly_and_a_missing_one_is_ignored():
+    stored = {**HW, "moodle_url": "https://moodle.example/a", "moodle_course_id": 7, "course_name": "Algo"}
+    assert refreshed_fields(stored, dict(stored)) == []
+    assert refreshed_fields(stored, {**stored, "course_name": "Algorithms"}) == ["course_name"]
+    assert refreshed_fields(stored, {**stored, "moodle_url": "https://moodle.example/b"}) == ["moodle_url"]
+    assert refreshed_fields(stored, {**stored, "moodle_course_id": 8}) == ["moodle_course_id"]
+    for name in ("moodle_url", "moodle_course_id", "course_name"):
+        assert refreshed_fields(stored, {k: v for k, v in stored.items() if k != name}) == []  # not sent: keep ours
+        assert changed_fields(stored, {**stored, name: "something else"}) == []  # never flags the task
+
+
+def test_batch_comparison_lists_the_unchanged_tasks_that_still_need_saving():
+    stored = {"1": {**HW, "moodle_id": "1"}, "2": {**HW, "moodle_id": "2", "description": None}}
+    incoming = [{**HW, "moodle_id": "1"}, {**HW, "moodle_id": "2"}]
+    diff = compare_with_stored(stored, incoming)
+    assert (diff.modified, diff.unchanged, diff.refresh) == ([], ["1", "2"], ["2"])
 
 
 def test_comparing_a_big_batch_is_fast():
@@ -236,6 +265,64 @@ def test_an_unchanged_task_is_saved_once_to_add_the_ai_verdict_it_was_missing(cl
     assert store.upserts == [[]]
 
 
+PAGE = {**HW, "moodle_url": "https://moodle.example/mod/assign/view.php?id=101", "moodle_course_id": 7, "course_name": "Algo"}
+CALENDAR = {"moodle_id": "101", "title": "Homework 3", "description": "", "due_date": "2026-12-05T23:59:00+02:00"}
+
+
+def test_syncing_from_the_calendar_and_the_assignment_page_is_not_a_change(client, store):
+    """The extension reads both pages. Going back and forth must not flag the task or erase anything."""
+    sync(client, PAGE)  # assignment page: has the instructions, link and course
+    store.upserts.clear()
+
+    for page in (CALENDAR, PAGE, CALENDAR, CALENDAR, PAGE):
+        body = sync(client, page)
+        assert (body["updated"], body["unchanged"]) == (0, 1)
+        task = tasks_by_id(client)["101"]
+        assert task["is_modified"] is False
+        assert task["description"] == "Chapter 4"
+        assert task["moodle_url"] == PAGE["moodle_url"]
+        assert task["course_name"] == "Algo"
+    assert store.upserts == [[], [], [], [], []]  # not one row was rewritten
+
+
+def test_a_description_that_really_changed_is_flagged_even_after_a_calendar_sync(client):
+    sync(client, PAGE)
+    sync(client, CALENDAR)
+    body = sync(client, {**PAGE, "description": "Chapter 9"})
+    assert body["updated"] == 1
+    task = tasks_by_id(client)["101"]
+    assert (task["is_modified"], task["description"]) == (True, "Chapter 9")
+
+
+def test_a_modified_sync_without_description_keeps_the_saved_one(client):
+    sync(client, PAGE)
+    sync(client, {**CALENDAR, "due_date": "2026-12-12T23:59:00+02:00"})  # only the date changed
+    task = tasks_by_id(client)["101"]
+    assert task["is_modified"] is True
+    assert task["description"] == "Chapter 4"  # not erased by the calendar's empty description
+    assert task["moodle_url"] == PAGE["moodle_url"]
+
+
+def test_a_description_found_later_is_saved_without_flagging_the_task(client, store):
+    sync(client, CALENDAR)  # first seen on the calendar: no description yet
+    store.upserts.clear()
+
+    body = sync(client, PAGE)
+    assert (body["updated"], body["unchanged"]) == (0, 1)
+    task = tasks_by_id(client)["101"]
+    assert (task["is_modified"], task["description"]) == (False, "Chapter 4")
+    assert len(store.upserts[0]) == 1  # saved once
+
+
+def test_a_renamed_course_or_a_new_link_is_saved_but_does_not_flag_the_task(client):
+    sync(client, PAGE)
+    body = sync(client, {**PAGE, "course_name": "Algorithms", "moodle_url": "https://moodle.example/new"})
+    assert (body["updated"], body["unchanged"]) == (0, 1)
+    task = tasks_by_id(client)["101"]
+    assert (task["course_name"], task["moodle_url"]) == ("Algorithms", "https://moodle.example/new")
+    assert task["is_modified"] is False
+
+
 def test_a_failure_while_reading_saved_tasks_returns_502_before_calling_the_ai(client, store, monkeypatch):
     def boom(user_id, ids):
         raise RuntimeError("database is down")
@@ -319,9 +406,9 @@ def test_supabase_store_reads_what_it_needs_to_compare_in_one_query():
 
     found = store.existing_tasks("u1", ["1", "2"])
     assert list(found) == ["1"]
-    assert task_calls(db, "select") == [("tasks", "select", COMPARE_COLUMNS)]
+    assert task_calls(db, "select") == [("tasks", "select", f"{COMPARE_COLUMNS},courses(name)")]  # one query, with the course name
     assert len(task_calls(db, "in_")) == 1
-    for needed in ("title", "description", "due_date"):
+    for needed in ("title", "description", "due_date", "moodle_url", "moodle_course_id"):
         assert needed in COMPARE_COLUMNS
 
 
@@ -373,3 +460,33 @@ def test_a_changed_task_is_sent_to_supabase_with_the_modified_flag(supabase_clie
     assert [row["moodle_id"] for row in payload] == ["1"]  # only the changed task
     assert payload[0]["is_modified"] is True
     assert payload[0]["user_id"] == "00000000-0000-0000-0000-000000000001"
+
+
+def test_supabase_store_returns_the_course_name_next_to_the_task():
+    store, db = make_supabase_store()
+    db.rows[("u1", "1")] = {"user_id": "u1", "moodle_id": "1", "title": "a", "courses": {"name": "Algo"}}
+    db.rows[("u1", "2")] = {"user_id": "u1", "moodle_id": "2", "title": "b", "courses": None}  # no course
+    found = store.existing_tasks("u1", ["1", "2"])
+    assert found["1"]["course_name"] == "Algo"
+    assert found["2"]["course_name"] is None
+    assert "courses" not in found["1"]
+
+
+def test_a_renamed_course_updates_the_course_and_the_task_without_flagging_it(supabase_client):
+    client, db = supabase_client
+    uid = "00000000-0000-0000-0000-000000000001"
+    db.rows[(uid, "1")] = {"user_id": uid, "moodle_id": "1", "title": "Task", "moodle_course_id": 7, "courses": {"name": "Algo"}}
+    db.calls.clear()
+
+    body = client.post(
+        "/api/tasks/sync",
+        json={"tasks": [{"moodle_id": "1", "title": "Task", "moodle_course_id": 7, "course_name": "Algorithms"}]},
+    ).json()
+    assert (body["updated"], body["unchanged"]) == (0, 1)
+
+    course_writes = [c for c in db.calls if c[0] == "courses" and c[1] == "upsert"]
+    assert [row["name"] for row in course_writes[0][2]] == ["Algorithms"]
+    payload = task_calls(db, "upsert")[0][2]
+    assert [row["moodle_id"] for row in payload] == ["1"]
+    assert "is_modified" not in payload[0]  # nothing the student needs to be told about
+    assert "description" not in payload[0]  # not sent, so not overwritten

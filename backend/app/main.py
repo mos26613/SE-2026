@@ -53,6 +53,10 @@ def get_store(
     return SupabaseStore(settings, user.access_token)
 
 
+# Fields that only some pages of Moodle give us. When missing, the saved value is kept.
+OPTIONAL_FIELDS = ("course_name", "moodle_course_id", "description", "moodle_url")
+
+
 def _to_row(task: TaskIn, ai: AIResult | None) -> dict:
     row = {
         "moodle_id": task.moodle_id,
@@ -63,6 +67,11 @@ def _to_row(task: TaskIn, ai: AIResult | None) -> dict:
         "due_date": task.due_date.isoformat() if task.due_date else None,
         "moodle_url": str(task.moodle_url) if task.moodle_url else None,
     }
+    # A value the extension did not send is "unknown", not "erase it": leave it out of the row, so a
+    # sync from the calendar page (no description, no link) never wipes what the assignment page gave us.
+    for name in OPTIONAL_FIELDS:
+        if row[name] is None or row[name] == "":
+            del row[name]
     if ai is not None:
         row.update(
             is_relevant=ai.is_relevant,
@@ -112,14 +121,14 @@ def sync_tasks(
         stored = store.existing_tasks(user.id, [t.moodle_id for t in unique])
     except Exception:
         log.exception("Reading saved tasks failed")
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not save tasks to the database")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not read saved tasks from the database")
 
     ai_results = ai_filter.classify_tasks(unique, settings)
     rows = [_to_row(t, ai_results.get(t.moodle_id)) for t in unique]
 
     # Which tasks are new, which changed on Moodle, and which came back identical (US 3.3.1).
     diff = compare_with_stored(stored, rows)
-    new_ids, modified_ids = set(diff.new), set(diff.modified)
+    new_ids, modified_ids, refresh_ids = set(diff.new), set(diff.modified), set(diff.refresh)
 
     to_save = []
     for row in rows:
@@ -127,6 +136,10 @@ def sync_tasks(
         if moodle_id in modified_ids:
             to_save.append({**row, "is_modified": True})  # the "Recently Modified" flag
         elif moodle_id in new_ids:
+            to_save.append(row)
+        elif moodle_id in refresh_ids:
+            # Identical on Moodle, but a link, the course or a first description has to be saved.
+            # Not flagged: nothing changed that the student needs to be told about.
             to_save.append(row)
         elif "ai_category" in row and stored[moodle_id].get("ai_category") is None:
             # Identical on Moodle, but the AI has not looked at it before: save only to add its verdict.

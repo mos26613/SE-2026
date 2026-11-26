@@ -34,7 +34,7 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 |---|---|---|---|
 | GET | `/` | anyone | Welcome message |
 | GET | `/health` | anyone | Whether Supabase and Gemini are configured |
-| POST | `/api/tasks/sync` | Chrome extension | Receives `{"tasks": [...]}`, runs the AI filter, saves. Returns how many were created / updated (details changed on Moodle, flagged `is_modified`) / unchanged (not rewritten) / filtered out |
+| POST | `/api/tasks/sync` | Chrome extension | Receives `{"tasks": [...]}`, runs the AI filter, saves. Returns how many were created / updated (details changed on Moodle, flagged `is_modified`) / unchanged (not rewritten) / filtered out. An empty or missing description, link or course is "unknown": it never counts as a change and never erases a saved value |
 | GET | `/api/tasks` | Dashboard | The student's tasks, soonest deadline first. `?include_filtered=true` also returns items Gemini marked as not relevant |
 
 Every `/api` request must send the student's Supabase login token: `Authorization: Bearer <access_token>`.
