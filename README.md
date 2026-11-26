@@ -153,6 +153,36 @@ docker compose up --build
 
 Stop everything with `docker compose down`. The backend reloads automatically when you edit files in `backend/`.
 
+### Secrets and environment variables
+
+All settings and secrets live in one file at the repository root: `.env`. It is listed in `.gitignore`, so it is never committed, and every team member keeps their own copy. `.env.example` is the template without secret values; copy it and fill it in.
+
+| Variable | What it is | Secret? |
+|---|---|---|
+| `SUPABASE_URL` | Address of the Supabase project | No |
+| `SUPABASE_KEY` | The **anon/public** key (never `service_role`) | Yes |
+| `GEMINI_API_KEY` | Google AI key. Empty = run without the AI step | Yes |
+| `GEMINI_MODEL`, `GEMINI_THINKING_LEVEL`, `GEMINI_TIMEOUT_SECONDS` | Gemini behavior | No |
+| `CORS_ORIGINS` | Browser addresses allowed to call the API | No |
+| `PORT`, `ENVIRONMENT` | Server settings | No |
+
+The backend reads them with `pydantic-settings` (`backend/app/config.py`), so the code contains no key. In GitHub Actions, secrets come from GitHub Secrets, not from files.
+
+**Secret scanning.** Install the commit hook once, on your computer:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+From then on, `git commit` is stopped if a file contains something that looks like a key or a password (the tool is [gitleaks](https://github.com/gitleaks/gitleaks); settings in `.gitleaks.toml`). To check all files now: `pre-commit run --all-files`. To scan the whole Git history (every commit and branch), with Docker running:
+
+```bash
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest git /repo
+```
+
+If a real secret was ever committed, deleting it in a new commit is not enough: it stays in the history. Create a new key in the provider's dashboard (Supabase or Google), put it in `.env`, and tell the team lead.
+
 ## Development workflow
 
 In short: pick a work item in Azure Boards, branch from `main`, make small focused commits that reference `AB#<id>`, open a pull request, get a review, merge. The full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
