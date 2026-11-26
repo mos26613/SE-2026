@@ -371,3 +371,57 @@ def test_supabase_key_accepts_both_env_names(monkeypatch):
     monkeypatch.delenv("SUPABASE_KEY")
     monkeypatch.setenv("SUPABASE_ANON_KEY", "old-name")
     assert Settings(_env_file=None).supabase_key == "old-name"
+
+
+def test_sync_auth_bearer_token_validation(client, monkeypatch):
+    from app import auth
+
+    non_dev = dev_settings(supabase_url="https://example.supabase.co", supabase_key="anon-key")
+    main.app.dependency_overrides[get_settings] = lambda: non_dev
+
+    # Missing Bearer header -> 401 Unauthorized
+    r_missing = client.post("/api/tasks/sync", json={"tasks": []})
+    assert r_missing.status_code == 401
+
+    # Invalid/expired token -> 401 Unauthorized
+    class _BadAuth:
+        def get_user(self, token):
+            raise RuntimeError("invalid or expired token")
+
+    class _BadClient:
+        auth = _BadAuth()
+
+    import supabase
+
+    monkeypatch.setattr(supabase, "create_client", lambda url, key: _BadClient())
+    r_bad = client.post(
+        "/api/tasks/sync",
+        json={"tasks": []},
+        headers={"Authorization": "Bearer bad-or-expired-token"},
+    )
+    assert r_bad.status_code == 401
+
+    # Valid Bearer token -> succeeds and passes user id
+    class _GoodUser:
+        id = "user-123"
+
+    class _GoodRes:
+        user = _GoodUser()
+
+    class _GoodAuth:
+        def get_user(self, token):
+            return _GoodRes()
+
+    class _GoodClient:
+        auth = _GoodAuth()
+
+    monkeypatch.setattr(supabase, "create_client", lambda url, key: _GoodClient())
+    monkeypatch.setattr(auth, "get_current_user", lambda credentials=None, settings=None: auth.CurrentUser(id="user-123", access_token="valid-token"))
+    monkeypatch.setattr(ai_filter, "classify_tasks", fake_ai({}))
+    r_ok = client.post(
+        "/api/tasks/sync",
+        json={"tasks": [TASKS[0]]},
+        headers={"Authorization": "Bearer valid-token"},
+    )
+    assert r_ok.status_code == 200
+    assert r_ok.json()["received"] == 1
