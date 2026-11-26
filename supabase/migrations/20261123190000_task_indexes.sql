@@ -15,6 +15,6 @@ create index if not exists idx_tasks_user_course on public.tasks using btree (us
 
 -- Also in place, as unique constraints (they create their own B-tree indexes):
 --   tasks   unique (user_id, moodle_id)         -> tasks_user_moodle_unique
---           used by the sync upsert (on_conflict) and the existing_ids lookup
+--           used by the sync upsert (on_conflict) and the existing_tasks lookup
 --   courses unique (user_id, moodle_course_id)  -> courses_user_moodle_course_unique
 --           used by the course upsert and the tasks -> courses join
