@@ -1,6 +1,7 @@
 fastapi==0.163.2
 uvicorn==0.54.0
 pydantic-settings==2.16.3
+email-validator==2.3.0  # EmailStr in the signup request
 google-genai==3.6.1
 supabase==2.34.1
 tzdata==2026.6  # time zone data; Windows needs it for Asia/Jerusalem
