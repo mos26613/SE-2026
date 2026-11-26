@@ -18,3 +18,4 @@ ADRs are never deleted. If a decision changes, write a new ADR and mark the old 
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-technology-stack.md) | Technology stack | Accepted |
 | [0003](0003-anonymize-pii-before-ai.md) | Anonymize personal data before sending it to the AI | Accepted |
+| [0004](0004-moodle-calendar-service.md) | Read deadlines from Moodle's calendar service, with page scraping as a fallback | Accepted |
