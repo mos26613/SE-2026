@@ -1,0 +1,57 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #1d2330;
+  --muted: #5b6474;
+  --border: #dde1e7;
+  --accent: #2557d6;
+  --danger: #b42318;
+  --ok: #18794e;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b;
+    --card: #1b2029;
+    --text: #e7eaf0;
+    --muted: #9aa3b2;
+    --border: #2c3340;
+    --accent: #7aa2ff;
+    --danger: #ff8a80;
+    --ok: #6fd3a3;
+  }
+}
+
+body { margin: 0; }
+button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; padding: 0.5rem 1rem; }
+button:disabled { opacity: 0.6; cursor: default; }
+.link-button { background: none; color: var(--accent); border: none; padding: 0.25rem 0; }
+
+.login { max-width: 360px; margin: 10vh auto; padding: 0 16px; }
+.login form { display: grid; gap: 1rem; }
+.login label { display: grid; gap: 0.35rem; font-weight: 500; }
+.login input { font: inherit; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
+.error-text { color: var(--danger); margin: 0; }
+
+.dashboard { max-width: 860px; margin: 0 auto; padding: 0 16px 3rem; }
+.dashboard-header { display: flex; align-items: center; justify-content: space-between; }
+.summary { color: var(--muted); }
+
+.status { padding: 2rem; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.status.error { color: var(--danger); }
+.status.empty h2 { margin-top: 0; }
+
+.task-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+.task-card { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 1rem; padding: 1rem; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.task-card.done { opacity: 0.65; }
+.task-title { margin: 0; font-size: 1.05rem; grid-column: 1; }
+.task-title a { color: inherit; }
+.task-course, .task-deadline, .task-summary { margin: 0; color: var(--muted); grid-column: 1; }
+.task-status { grid-column: 2; grid-row: 1; align-self: start; font-size: 0.85rem; font-weight: 600; }
+.status-open { color: var(--accent); }
+.status-done { color: var(--ok); }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

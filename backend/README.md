@@ -28,6 +28,7 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 | `app/config.py` | Settings from the root `.env` |
 | `tests/test_api.py` | End-to-end API tests with an in-memory store and a fake Gemini |
 | `tests/test_query_shape.py` | Checks the task queries keep the shape the database indexes expect ([docs/performance/indexing.md](../docs/performance/indexing.md)) |
+| `tests/test_rls.py` | Row Level Security tests against the real Supabase project with two test students. Skipped unless configured, see [docs/security/rls.md](../docs/security/rls.md) |
 
 ## Endpoints
 
@@ -114,7 +115,7 @@ The schema is owned by Epic 1 (project `dsclfcysdrjchhyynggt`). What the backend
 - `tasks`: the columns in `app/db.py` (`COLUMNS`) plus `user_id`, a unique constraint on `(user_id, moodle_id)`, and a foreign key `(user_id, moodle_course_id)` → `courses`.
 - `courses`: `user_id`, `moodle_course_id`, `name`, unique on `(user_id, moodle_course_id)`. The backend creates or renames a course when a task arrives with a `moodle_course_id`.
 - `users`: one row per student, created automatically on sign-up by the `on_auth_user_created` trigger (`tasks.user_id` references it).
-- Row-level security on all three, and `grant ... to authenticated` so the Data API can reach them (the project doesn't expose new tables automatically).
+- Row-level security on all three, and `grant ... to authenticated` so the Data API can reach them (the project doesn't expose new tables automatically). How RLS is set up and tested: [docs/security/rls.md](../docs/security/rls.md).
 
 ## Not done yet
 

@@ -17,6 +17,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      # Public settings baked into the React bundle (read from the root .env).
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
     container_name: task_hub_frontend
     ports:
       - "3000:3000"
