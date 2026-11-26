@@ -8,6 +8,7 @@ We follow **Scrum** in Azure DevOps (organization `mogrossm`): one-week sprints 
 
 1. Find the **User Story** or **Task** in Azure Boards for the change, in the current sprint. If there isn't one, create it under the right Feature and Epic.
 2. Assign it to yourself and move it to **In Progress** (Committed).
+3. Install the secret-scanning commit hook once: `pip install pre-commit && pre-commit install` (see [Secrets and environment variables](README.md#secrets-and-environment-variables)).
 
 ## Branches
 

@@ -64,7 +64,7 @@ def test_sync_then_list_full_flow(client, monkeypatch):
 
     r = client.post("/api/tasks/sync", json={"tasks": TASKS})
     assert r.status_code == 200
-    assert r.json() == {"received": 3, "created": 3, "updated": 0, "filtered_out": 1, "ai_applied": True}
+    assert r.json() == {"received": 3, "created": 3, "updated": 0, "unchanged": 0, "filtered_out": 1, "ai_applied": True}
 
     tasks = client.get("/api/tasks").json()
     # The forum post was filtered out, the rest come back soonest deadline first.
@@ -371,3 +371,25 @@ def test_supabase_key_accepts_both_env_names(monkeypatch):
     monkeypatch.delenv("SUPABASE_KEY")
     monkeypatch.setenv("SUPABASE_ANON_KEY", "old-name")
     assert Settings(_env_file=None).supabase_key == "old-name"
+
+
+def test_sync_empty_batch_and_store_failure(client, monkeypatch):
+    monkeypatch.setattr(ai_filter, "classify_tasks", fake_ai({}))
+
+    empty_resp = client.post("/api/tasks/sync", json={"tasks": []})
+    assert empty_resp.status_code == 200
+    assert empty_resp.json() == {
+        "received": 0,
+        "created": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "filtered_out": 0,
+        "ai_applied": False,
+    }
+
+    def _boom_upsert(user_id, rows):
+        raise RuntimeError("db write failure")
+
+    monkeypatch.setattr(main._memory_store, "upsert", _boom_upsert)
+    err_resp = client.post("/api/tasks/sync", json={"tasks": [TASKS[0]]})
+    assert err_resp.status_code == 502

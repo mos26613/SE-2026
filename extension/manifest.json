@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Student Task Hub - Moodle Sync",
+  "version": "1.0.0",
+  "description": "Passive, read-only synchronization of Moodle assignments and deadlines into Smart Student Task Hub.",
+  "permissions": [
+    "storage",
+    "cookies",
+    "scripting",
+    "activeTab",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "*://moodle.jct.ac.il/*",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Smart Student Task Hub"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://moodle.jct.ac.il/*"
+      ],
+      "js": ["moodle.js", "dom_scraper.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
