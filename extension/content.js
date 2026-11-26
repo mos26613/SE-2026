@@ -50,7 +50,9 @@
       });
       return { tasks, source: "calendar-service" };
     } catch (e) {
-      console.warn("[TaskHub] Moodle calendar service unavailable, falling back to the page:", e.message);
+      // Expected on old Moodle versions or when the service is blocked: info, not a warning,
+      // so it doesn't show up on chrome://extensions as an extension error.
+      console.info("[TaskHub] Moodle calendar service unavailable, falling back to the page:", e.message);
       return { tasks: DomScraper.scrapeDom(document, window.location.href), source: "dom" };
     }
   }
