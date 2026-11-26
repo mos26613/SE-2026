@@ -121,9 +121,11 @@ erDiagram
     }
 ```
 
+**Indexes.** Every task query is limited to one student, so each composite index starts with `user_id`: `(user_id, due_date)` serves the dashboard's "soonest deadline first" query, `(user_id, moodle_course_id)` serves the course link, and the unique `(user_id, moodle_id)` serves the sync upsert. The full list, the `EXPLAIN` results and the 100 ms target are in [performance/indexing.md](performance/indexing.md) (US 1.2.2).
+
 ## 6. Security and privacy
 
-- **Row-level security** on every user table: `auth.uid() = user_id`.
+- **Row-level security** on every user table: `auth.uid() = user_id`. Policies, privileges and tests are in [security/rls.md](security/rls.md) (US 1.3.1).
 - **JWT** from Supabase Auth on every request from the extension and the dashboard.
 - **No Moodle passwords** are stored or sent; the extension uses the student's existing session on the client side.
 - **PII anonymization** on the server is mandatory before any Gemini request, and personal details are restored only locally ([ADR 0003](adr/0003-anonymize-pii-before-ai.md)).
