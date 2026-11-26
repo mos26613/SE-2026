@@ -85,3 +85,36 @@ test("parseMoodleDateToISO reads numeric, Hebrew and English dates, and rejects 
   assert.equal(S.parseMoodleDateToISO("לא נקבע"), null);
   assert.equal(S.parseMoodleDateToISO(""), null);
 });
+
+test("Real JCT assignment page: due date labelled מסתיים with a 12-hour time", () => {
+  const { doc, url } = page("assign_view_jct.html", "https://moodle.jct.ac.il/mod/assign/view.php?id=971079");
+  const [task] = S.scrapeDom(doc, url);
+
+  assert.ok(task, "the fallback must find the assignment");
+  assert.equal(task.moodle_id, "971079");
+  assert.equal(task.title, "הגשת תרגיל עיוני 1 Submission box for theoretical assignment 1");
+  assert.equal(task.course_name, "151131.5787 - קומפיילרים ומתרגמים");
+  assert.equal(task.moodle_course_id, 78317);
+  // The due date (מסתיים), not the opening date (נפתח) or the last-modified time
+  assert.equal(task.due_date, local(2026, 11, 18, 23, 59));
+});
+
+test("12-hour times: PM adds 12 hours, 12 AM is midnight, 12 PM is noon", () => {
+  assert.equal(S.parseMoodleDateToISO("מסתיים: יום רביעי, 18 נובמבר 2026, 11:59 PM"), local(2026, 11, 18, 23, 59));
+  assert.equal(S.parseMoodleDateToISO("נפתח: יום שבת, 24 אוקטובר 2026, 12:00 AM"), local(2026, 10, 24, 0, 0));
+  assert.equal(S.parseMoodleDateToISO("18 בנובמבר 2026, 12:30 PM"), local(2026, 11, 18, 12, 30));
+  assert.equal(S.parseMoodleDateToISO("18/11/2026, 11:59 PM"), local(2026, 11, 18, 23, 59));
+  assert.equal(S.parseMoodleDateToISO("Due: Wednesday, 18 November 2026, 11:59 PM"), local(2026, 11, 18, 23, 59));
+});
+
+test("English Moodle page: Due: next to Opened:", () => {
+  const html = `<!DOCTYPE html><html><body>
+    <h1>Lab 4</h1>
+    <div data-region="activity-dates" class="activity-dates">
+      <div><strong>Opened:</strong> Saturday, 24 October 2026, 12:00 AM</div>
+      <div><strong>Due:</strong> Wednesday, 18 November 2026, 11:59 PM</div>
+    </div></body></html>`;
+  const doc = new JSDOM(html, { url: "https://moodle.example.ac.il/mod/assign/view.php?id=42" }).window.document;
+  const [task] = S.scrapeDom(doc, "https://moodle.example.ac.il/mod/assign/view.php?id=42");
+  assert.equal(task.due_date, local(2026, 11, 18, 23, 59));
+});

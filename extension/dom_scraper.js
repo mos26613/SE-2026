@@ -5,6 +5,14 @@
 // saved Moodle page. Every function takes the document and URL as parameters, so it can be
 // tested without a browser.
 (function (root) {
+  // Labels Moodle puts before an activity's due date. Moodle 4.x shows "מסתיים:" / "Due:" in
+  // the activity-dates block (next to "נפתח:" / "Opened:", the opening date, which is ignored);
+  // older pages and quizzes use the others.
+  const DUE_LABELS = ["מסתיים", "מועד הגשה", "נסגר ב", "Due:", "Due date", "Closes", "Closed:"];
+  const DUE_LABEL_PREFIX = /^(?:מסתיים|מועד הגשה|נסגר ב|Due date|Due|Closes|Closed)[:\s-]*/i;
+  // 12-hour clock: Moodle in Hebrew still writes AM/PM after the time ("11:59 PM").
+  const TIME = /(\d{1,2}):(\d{2})(?:\s*(AM|PM|לפנה"צ|אחה"צ))?/i;
+
   const Moodle = root.TaskHubMoodle || (typeof require !== "undefined" ? require("./moodle.js") : null);
   const cleanText = Moodle.cleanText;
   const extractActivityId = Moodle.extractActivityId;
@@ -81,7 +89,7 @@
       let dueDate = null;
       doc.querySelectorAll("table.generaltable tr, .submissionstatustable tr, .activity-dates div").forEach((row) => {
         const text = cleanText(row.textContent);
-        if (text.includes("מועד הגשה") || text.includes("Due date") || text.includes("נסגר ב") || text.includes("Closes")) {
+        if (DUE_LABELS.some((label) => text.includes(label))) {
           const parsed = parseMoodleDateToISO(text);
           if (parsed) dueDate = parsed;
         }
@@ -103,17 +111,30 @@
     }
   }
 
+  // "11:59 PM" -> [23, 59]; "12:00 AM" -> [0, 0]; "18:00" -> [18, 0]. null if no time.
+  function readTime(str) {
+    const match = String(str).match(TIME);
+    if (!match) return null;
+    let hour = Number(match[1]);
+    const minute = Number(match[2]);
+    const half = (match[3] || "").toUpperCase();
+    if (half === "PM" || half === 'אחה"צ') hour = hour === 12 ? 12 : hour + 12;
+    if (half === "AM" || half === 'לפנה"צ') hour = hour === 12 ? 0 : hour;
+    return [hour, minute];
+  }
+
   // Hebrew and English Moodle date strings -> ISO 8601 UTC (US 2.3.3).
   // Dates without a time zone are read in the browser's local time (Israel for our students).
   function parseMoodleDateToISO(rawStr) {
     if (!rawStr) return null;
 
-    // DD/MM/YYYY or DD.MM.YYYY with HH:MM
-    const numericMatch = rawStr.match(/(\d{1,2})[./](\d{1,2})[./](\d{2,4}).*?(\d{1,2}):(\d{2})/);
-    if (numericMatch) {
-      let [, day, month, year, hour, minute] = numericMatch;
+    // DD/MM/YYYY or DD.MM.YYYY with HH:MM (optionally AM/PM)
+    const numericMatch = rawStr.match(/(\d{1,2})[./](\d{1,2})[./](\d{2,4})(.*)$/);
+    const numericTime = numericMatch && readTime(numericMatch[4]);
+    if (numericMatch && numericTime) {
+      let [, day, month, year] = numericMatch;
       if (year.length === 2) year = "20" + year;
-      const dateObj = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+      const dateObj = new Date(Number(year), Number(month) - 1, Number(day), ...numericTime);
       if (!isNaN(dateObj.getTime())) return dateObj.toISOString();
     }
 
@@ -123,18 +144,19 @@
       "מאי": 4, "יוני": 5, "יולי": 6, "אוגוסט": 7,
       "ספטמבר": 8, "אוקטובר": 9, "נובמבר": 10, "דצמבר": 11,
     };
-    const hebMatch = rawStr.match(/(\d{1,2})\s+ב?([א-ת]+)\s+(\d{4}).*?(\d{1,2}):(\d{2})/);
-    if (hebMatch) {
-      const [, day, monthWord, year, hour, minute] = hebMatch;
+    const hebMatch = rawStr.match(/(\d{1,2})\s+ב?([א-ת]+)\s+(\d{4})(.*)$/);
+    const hebTime = hebMatch && readTime(hebMatch[4]);
+    if (hebMatch && hebTime) {
+      const [, day, monthWord, year] = hebMatch;
       const monthIdx = hebrewMonths[monthWord];
       if (monthIdx !== undefined) {
-        const dateObj = new Date(Number(year), monthIdx, Number(day), Number(hour), Number(minute));
+        const dateObj = new Date(Number(year), monthIdx, Number(day), ...hebTime);
         if (!isNaN(dateObj.getTime())) return dateObj.toISOString();
       }
     }
 
     // English dates that Date() understands
-    const cleanedEng = rawStr.replace(/^(Due date|מועד הגשה|נסגר ב|Closes)[:\s-]*/i, "").trim();
+    const cleanedEng = rawStr.replace(DUE_LABEL_PREFIX, "").trim();
     const fallbackDate = new Date(cleanedEng);
     if (!isNaN(fallbackDate.getTime())) return fallbackDate.toISOString();
 
