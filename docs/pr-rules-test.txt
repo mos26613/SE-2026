@@ -1,1 +1,2 @@
 temporary file for testing PR approval rules (US 1.4.4). This PR is closed without merging.
+second commit, to check that the approval is dismissed
