@@ -35,10 +35,11 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 |---|---|---|---|
 | GET | `/` | anyone | Welcome message |
 | GET | `/health` | anyone | Whether Supabase and Gemini are configured |
-| POST | `/api/tasks/sync` | Chrome extension | Receives `{"tasks": [...]}`, runs the AI filter, saves. Returns how many were created / updated / filtered out |
+| POST | `/api/tasks/sync` | Chrome extension | Receives `{"tasks": [...]}`, runs the AI filter, saves. Returns how many were created / updated (details changed on Moodle, flagged `is_modified`) / unchanged (not rewritten) / filtered out. An empty or missing description, link or course is "unknown": it never counts as a change and never erases a saved value |
+| POST | `/api/auth/signup` | Registration page | Creates a student in Supabase Auth from `{"email", "password"}` (password: 8+ characters, one uppercase letter, one digit) and Supabase sends the verification email. 201 on success, 400 if the email is already registered or the password is weak, 422 for invalid input, 429 when Supabase's email limit is hit. The "already registered" answer tells anyone whether an email has an account (required by AC 4) |
 | GET | `/api/tasks` | Dashboard | The student's tasks, soonest deadline first. `?include_filtered=true` also returns items Gemini marked as not relevant |
 
-Every `/api` request must send the student's Supabase login token: `Authorization: Bearer <access_token>`.
+Every `/api` request except `POST /api/auth/signup` must send the student's Supabase login token: `Authorization: Bearer <access_token>`.
 In **dev mode** (`SUPABASE_URL` empty or still the placeholder) no token is needed and data is kept in memory until the server restarts, so you can try everything from `/docs` right away.
 
 Example sync body:
@@ -119,6 +120,6 @@ The schema is owned by Epic 1 (project `dsclfcysdrjchhyynggt`). What the backend
 
 - **PII anonymization (US 5.2.x, ADR 0003):** task titles and descriptions are currently sent to Gemini as they are. A description could contain a lecturer's name or email, so the anonymization middleware must be added before this goes to production.
 - **Real Supabase test (US 3.1.3, 3.2.1, 3.2.2):** the Supabase code matches Epic 1's schema and is unit-tested with fakes, but hasn't run against the real project yet.
-- **`is_modified` ("Recently Modified" badge, Epic 3):** the column exists but the backend doesn't set it yet when a deadline changes.
-- **Large syncs:** all tasks go to Gemini in one request, and Gemini is called again on every re-sync. Fine for tens of tasks; batching and skipping unchanged tasks would help once real extension data arrives.
+- **"Recently Modified" badge (Epic 3):** the backend sets `is_modified` (US 3.3.1), but nothing clears it yet. Clearing it after the student first views the task, and showing the red badge, belong to the dashboard.
+- **Large syncs:** all tasks go to Gemini in one request, and Gemini is called again on every re-sync. Fine for tens of tasks; batching the AI call, and not sending unchanged tasks to Gemini, would help once real extension data arrives. (Unchanged tasks are already not rewritten in the database, see `app/change_detection.py`.)
 - **Rate limiting (US 3.1.4)**.
