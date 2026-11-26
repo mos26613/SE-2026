@@ -16,7 +16,8 @@
   const MAX_PAGES = 4;
   // NFR-9: ask Moodle at most once per 15 minutes on ordinary page loads. Every Moodle page
   // load runs content.js, so without this each click would send up to MAX_PAGES requests.
-  // A manual "Sync Now" always runs. Same interval as SYNC_THROTTLE_MS in background.js.
+  // A manual "Sync Now" always runs, and starts the same window. Same interval as
+  // SYNC_THROTTLE_MS in background.js.
   const PASSIVE_FETCH_INTERVAL_MS = 15 * 60 * 1000;
 
   // Zero-width characters and bidi controls Hebrew Moodle pages are full of.

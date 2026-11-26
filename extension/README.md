@@ -23,7 +23,7 @@ Manifest V3 extension that reads the student's assignments from Moodle (read-onl
 
 Why the calendar service is the main source, and the risk that comes with it: [ADR 0004](../docs/adr/0004-moodle-calendar-service.md).
 
-**Load on Moodle (NFR-9):** `content.js` runs on every Moodle page, so on ordinary page loads it asks Moodle at most **once per 15 minutes** (`PASSIVE_FETCH_INTERVAL_MS` in `moodle.js`, time of the last request in `chrome.storage.local` as `lastMoodleFetch`). **Sync Now** always asks. When there are no upcoming assignments, Sync Now shows "אין מטלות קרובות" (a normal state, Scenario 1), not an error.
+**Load on Moodle (NFR-9):** `content.js` runs on every Moodle page, so on ordinary page loads it asks Moodle at most **once per 15 minutes** (`PASSIVE_FETCH_INTERVAL_MS` in `moodle.js`, time of the last request in `chrome.storage.local` as `lastMoodleFetch`). **Sync Now** always asks, and also starts the 15-minute window, so the page loads right after it don't ask again. When there are no upcoming assignments, Sync Now shows "אין מטלות קרובות" (a normal state, Scenario 1), not an error.
 
 Checked on moodle.jct.ac.il (Nov 2026): the service returned all 24 upcoming events. The JCT dashboard shows a month calendar whose items carry no due time or course, so scraping alone can't produce complete tasks there.
 

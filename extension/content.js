@@ -10,10 +10,14 @@
   const Moodle = globalThis.TaskHubMoodle; // from moodle.js, loaded first (manifest.json)
   const DomScraper = globalThis.TaskHubDomScraper; // from dom_scraper.js
 
-  // Manual "Sync Now" from the popup (through background.js): always asks Moodle.
+  // Manual "Sync Now" from the popup (through background.js): always asks Moodle, and
+  // starts the 15-minute window, so the next page load doesn't ask again for the same data.
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "FORCE_SCRAPE") {
-      extractAllMoodleTasks().then(sendResponse);
+      chrome.storage.local
+        .set({ lastMoodleFetch: Date.now() })
+        .then(extractAllMoodleTasks)
+        .then(sendResponse);
       return true; // keep the channel open for the async answer
     }
     return false;
