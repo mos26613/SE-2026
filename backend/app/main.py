@@ -14,7 +14,7 @@ import logging
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import ai_filter
+from . import ai_gateway
 from .auth import CurrentUser, get_current_user
 from .config import Settings, get_settings
 from .db import MemoryStore, SupabaseStore, TaskStore
@@ -105,7 +105,7 @@ def sync_tasks(
     # The same assignment twice in one batch: keep the last copy.
     unique = list({t.moodle_id: t for t in body.tasks}.values())
 
-    ai_results = ai_filter.classify_tasks(unique, settings)
+    ai_results = ai_gateway.classify_tasks_via_gateway(unique, settings)
     rows = [_to_row(t, ai_results.get(t.moodle_id)) for t in unique]
 
     try:
