@@ -35,7 +35,7 @@ def client(monkeypatch):
 # --- success -----------------------------------------------------------------
 
 def test_signup_succeeds(client):
-    r = client.post("/auth/signup", json=GOOD)
+    r = client.post("/api/auth/signup", json=GOOD)
     assert r.status_code == 201
     assert r.json()["email"] == "student@example.com"
     assert "verification" in r.json()["message"]
@@ -43,11 +43,11 @@ def test_signup_succeeds(client):
 
 def test_signup_needs_no_login_token(client):
     # Registration is the step before having a token.
-    assert client.post("/auth/signup", json=GOOD).status_code == 201
+    assert client.post("/api/auth/signup", json=GOOD).status_code == 201
 
 
 def test_email_is_saved_in_lowercase(client):
-    r = client.post("/auth/signup", json={**GOOD, "email": "Student@Example.COM"})
+    r = client.post("/api/auth/signup", json={**GOOD, "email": "Student@Example.COM"})
     assert r.status_code == 201
     assert r.json()["email"] == "student@example.com"
 
@@ -56,7 +56,7 @@ def test_email_is_saved_in_lowercase(client):
 
 @pytest.mark.parametrize("email", ["", "plainaddress", "no-at-sign.com", "a@", "@example.com", "a b@example.com"])
 def test_invalid_email_is_rejected(client, email):
-    r = client.post("/auth/signup", json={**GOOD, "email": email})
+    r = client.post("/api/auth/signup", json={**GOOD, "email": email})
     assert r.status_code == 422
 
 
@@ -73,37 +73,37 @@ def test_invalid_email_is_rejected(client, email):
     ],
 )
 def test_weak_password_is_rejected(client, password):
-    r = client.post("/auth/signup", json={**GOOD, "password": password})
+    r = client.post("/api/auth/signup", json={**GOOD, "password": password})
     assert r.status_code == 422
     assert "at least 8 characters" in str(r.json())
 
 
 def test_password_with_exactly_8_characters_is_accepted(client):
-    assert client.post("/auth/signup", json={**GOOD, "password": "Abcdefg1"}).status_code == 201
+    assert client.post("/api/auth/signup", json={**GOOD, "password": "Abcdefg1"}).status_code == 201
 
 
 def test_password_too_long_for_supabase_is_rejected(client):
-    r = client.post("/auth/signup", json={**GOOD, "password": "Aa1" + "x" * 70})
+    r = client.post("/api/auth/signup", json={**GOOD, "password": "Aa1" + "x" * 70})
     assert r.status_code == 422
 
 
 def test_missing_fields_are_rejected(client):
-    assert client.post("/auth/signup", json={"email": GOOD["email"]}).status_code == 422
-    assert client.post("/auth/signup", json={"password": GOOD["password"]}).status_code == 422
+    assert client.post("/api/auth/signup", json={"email": GOOD["email"]}).status_code == 422
+    assert client.post("/api/auth/signup", json={"password": GOOD["password"]}).status_code == 422
 
 
 # --- duplicate email (AC 4) --------------------------------------------------
 
 def test_duplicate_email_returns_400_with_clear_message(client):
-    assert client.post("/auth/signup", json=GOOD).status_code == 201
-    r = client.post("/auth/signup", json=GOOD)
+    assert client.post("/api/auth/signup", json=GOOD).status_code == 201
+    r = client.post("/api/auth/signup", json=GOOD)
     assert r.status_code == 400
     assert r.json()["detail"] == DUPLICATE_EMAIL_MESSAGE
 
 
 def test_duplicate_email_ignores_letter_case(client):
-    client.post("/auth/signup", json=GOOD)
-    r = client.post("/auth/signup", json={**GOOD, "email": "STUDENT@example.com"})
+    client.post("/api/auth/signup", json=GOOD)
+    r = client.post("/api/auth/signup", json={**GOOD, "email": "STUDENT@example.com"})
     assert r.status_code == 400
 
 
@@ -113,7 +113,7 @@ def test_unexpected_failure_returns_502_without_details(client, monkeypatch):
             raise RuntimeError("secret internal detail")
 
     main.app.dependency_overrides[signup_module.get_registrar] = lambda: Broken()
-    r = client.post("/auth/signup", json=GOOD)
+    r = client.post("/api/auth/signup", json=GOOD)
     assert r.status_code == 502
     assert "secret" not in r.text
 
@@ -131,9 +131,10 @@ class FakeAuth:
         return self.result
 
 
-def registrar_with(fake_auth) -> SupabaseRegistrar:
+def registrar_with(fake_auth, redirect_to: str = "") -> SupabaseRegistrar:
     registrar = object.__new__(SupabaseRegistrar)  # skip the real Supabase connection
     registrar._client = SimpleNamespace(auth=fake_auth)
+    registrar._redirect_to = redirect_to
     return registrar
 
 
@@ -147,6 +148,19 @@ def test_supabase_signup_sends_email_and_password():
     auth = FakeAuth(SimpleNamespace(user=SimpleNamespace(identities=[object()])))
     registrar_with(auth).sign_up("a@example.com", "Secret123")
     assert auth.calls == [{"email": "a@example.com", "password": "Secret123"}]
+
+
+def test_supabase_signup_sends_the_verification_link_to_the_frontend_when_configured():
+    auth = FakeAuth(SimpleNamespace(user=SimpleNamespace(identities=[object()])))
+    registrar_with(auth, redirect_to="https://app.example/welcome").sign_up("a@example.com", "Secret123")
+    assert auth.calls == [
+        {"email": "a@example.com", "password": "Secret123", "options": {"email_redirect_to": "https://app.example/welcome"}}
+    ]
+
+
+def test_the_frontend_address_is_empty_by_default():
+    assert Settings(_env_file=None).frontend_url == ""
+    assert Settings(_env_file=None, frontend_url="https://app.example").frontend_url == "https://app.example"
 
 
 def test_supabase_hidden_duplicate_is_detected():

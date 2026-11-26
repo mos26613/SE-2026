@@ -1,6 +1,6 @@
 """Student registration (User Story 1.1.1, AB#183).
 
-POST /auth/signup creates the student in Supabase Auth. Supabase then sends the
+POST /api/auth/signup creates the student in Supabase Auth. Supabase then sends the
 verification email (the "Confirm email" setting in the Supabase dashboard must be on).
 The `users` profile row is created by the on_auth_user_created trigger in the database.
 
@@ -18,7 +18,7 @@ from ..config import Settings, get_settings
 
 log = logging.getLogger("task-api")
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 PASSWORD_RULES = "Password must be at least 8 characters and contain at least one uppercase letter and one digit"
 DUPLICATE_EMAIL_MESSAGE = "An account with this email already exists. Try logging in instead."
@@ -82,10 +82,16 @@ class SupabaseRegistrar:
 
         # The anon key is enough: Supabase Auth sends the verification email itself.
         self._client = create_client(settings.supabase_url, settings.supabase_key)
+        # Where the link in the verification email sends the student. Empty = the "Site URL" set in
+        # the Supabase dashboard. Supabase only accepts addresses listed under Redirect URLs there.
+        self._redirect_to = settings.frontend_url
 
     def sign_up(self, email: str, password: str) -> None:
+        credentials = {"email": email, "password": password}
+        if self._redirect_to:
+            credentials["options"] = {"email_redirect_to": self._redirect_to}
         try:
-            result = self._client.auth.sign_up({"email": email, "password": password})
+            result = self._client.auth.sign_up(credentials)
         except Exception as exc:  # the Supabase client raises its own error types
             code = getattr(exc, "code", None)
             http_status = getattr(exc, "status", None)

@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Comma-separated, e.g. "http://localhost:5173,chrome-extension://abcdefg"
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
+    # Where the link in the verification email sends a new student (the dashboard's address).
+    # Empty = use the "Site URL" from the Supabase dashboard. To change it, also add the address under
+    # Authentication -> URL Configuration -> Redirect URLs in Supabase.
+    frontend_url: str = ""
+
     # Safety limit on how many tasks one sync request may send.
     max_tasks_per_sync: int = 200
 

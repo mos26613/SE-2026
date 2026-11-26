@@ -25,6 +25,7 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 | `app/ai_filter.py` | The Gemini step. Never blocks saving: if Gemini is missing, busy or fails, tasks are saved without AI fields (one automatic retry on 5xx) |
 | `app/db.py` | Saving and reading. `SupabaseStore` for the real database, `MemoryStore` for dev mode and tests. The only file to change if the table's columns differ |
 | `app/auth.py` | Checks the student's Supabase login token |
+| `app/routers/auth.py` | Student registration (`POST /api/auth/signup`), which needs no login token |
 | `app/config.py` | Settings from the root `.env` |
 | `tests/test_api.py` | End-to-end API tests with an in-memory store and a fake Gemini |
 
@@ -35,9 +36,10 @@ Related work items: US 3.1.1 (AB#366), US 3.1.2 (AB#371), US 5.1.3 (AB#37). Part
 | GET | `/` | anyone | Welcome message |
 | GET | `/health` | anyone | Whether Supabase and Gemini are configured |
 | POST | `/api/tasks/sync` | Chrome extension | Receives `{"tasks": [...]}`, runs the AI filter, saves. Returns how many were created / updated / filtered out |
+| POST | `/api/auth/signup` | Registration page | Creates a student in Supabase Auth from `{"email", "password"}` (password: 8+ characters, one uppercase letter, one digit) and Supabase sends the verification email. 201 on success, 400 if the email is already registered or the password is weak, 422 for invalid input, 429 when Supabase's email limit is hit. The "already registered" answer tells anyone whether an email has an account (required by AC 4) |
 | GET | `/api/tasks` | Dashboard | The student's tasks, soonest deadline first. `?include_filtered=true` also returns items Gemini marked as not relevant |
 
-Every `/api` request must send the student's Supabase login token: `Authorization: Bearer <access_token>`.
+Every `/api` request except `POST /api/auth/signup` must send the student's Supabase login token: `Authorization: Bearer <access_token>`.
 In **dev mode** (`SUPABASE_URL` empty or still the placeholder) no token is needed and data is kept in memory until the server restarts, so you can try everything from `/docs` right away.
 
 Example sync body:
