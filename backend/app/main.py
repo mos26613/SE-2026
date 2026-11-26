@@ -22,6 +22,7 @@ from .config import Settings, get_settings
 from .db import MemoryStore, SupabaseStore, TaskStore
 from .models import AIResult, SyncRequest, SyncResponse, TaskIn, TaskOut
 from .routers import auth as auth_router
+from .summary import TaskSummary, summarize
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("task-api")
@@ -177,3 +178,22 @@ def list_tasks(
     except Exception:
         log.exception("Reading tasks failed")
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not read tasks from the database")
+
+
+# Declared after GET /api/tasks but with a longer path, so the two never clash.
+@app.get("/api/tasks/summary", response_model=TaskSummary, tags=["tasks"])
+def tasks_summary(
+    user: CurrentUser = Depends(get_current_user),
+    store: TaskStore = Depends(get_store),
+):
+    """Called by the dashboard's summary widgets: how many tasks are overdue, due today, due this week.
+
+    Counted from the same tasks as GET /api/tasks (filtered-out items are not counted),
+    so the widgets always agree with the list.
+    """
+    try:
+        tasks = store.list_tasks(user.id, include_filtered=False)
+    except Exception:
+        log.exception("Reading tasks for the summary failed")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not read tasks from the database")
+    return summarize(tasks)
