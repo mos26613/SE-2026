@@ -40,12 +40,18 @@
     );
   }
 
-  // Extract tasks from Dashboard Timeline and Upcoming Events blocks (US 2.3.2)
+  // Extract tasks from Dashboard Timeline, Upcoming Events, and Monthly Calendar blocks (US 2.3.2)
   function scrapeTimelineAndUpcoming() {
     const results = [];
     const eventSelectors = [
       '[data-region="event-list-item"]',
+      '[data-region="timeline-view"] [data-region="event-list-item"]',
+      '[data-region="timeline"] [data-region="event-list-item"]',
+      ".block_timeline [data-region='event-list-item']",
       ".block_calendar_upcoming .event",
+      ".block_calendar_month .event",
+      ".block_calendar_month [data-region='day'] a[href*='/mod/']",
+      ".block_calendar_month td.day a[href*='/mod/']",
       ".calendar_event_due",
       ".eventlist .card"
     ];
@@ -54,20 +60,39 @@
 
     eventNodes.forEach((node) => {
       try {
-        const titleEl = node.querySelector("h6 a, .eventname a, a[data-action='view-event'], a[href*='/mod/']");
-        const courseEl = node.querySelector(".text-muted, .course a, [data-region='event-course-name']");
-        const dateEl = node.querySelector(".date, time, [data-region='event-time'], .col-11");
+        if (!node) return;
 
-        if (!titleEl || !titleEl.href) return;
+        const isDirectLink = node.tagName === "A" && node.href;
+        const titleEl = isDirectLink
+          ? node
+          : node.querySelector("h6 a, .eventname a, a[data-action='view-event'], a[href*='/mod/']");
+        const courseEl = node.querySelector
+          ? node.querySelector(".text-muted, .course a, [data-region='event-course-name']")
+          : null;
+        const dateEl = node.querySelector
+          ? node.querySelector(".date, time, [data-region='event-time'], [data-region='day-timestamp'], .col-11")
+          : null;
 
-        const moodleUrl = titleEl.href.split("#")[0];
+        const href = titleEl && titleEl.href ? String(titleEl.href) : "";
+        if (!href) return;
+
+        const moodleUrl = href.split("#")[0];
         const moodleId = extractActivityId(moodleUrl);
         if (!moodleId) return;
 
-        const rawTitle = cleanText(titleEl.textContent);
-        const courseName = courseEl ? cleanText(courseEl.textContent) : extractCourseFromBreadcrumbs();
+        const rawTitle = cleanText(titleEl.textContent || titleEl.getAttribute("title") || "");
+        if (!rawTitle) return;
+
+        const courseName = courseEl && cleanText(courseEl.textContent)
+          ? cleanText(courseEl.textContent)
+          : extractCourseFromBreadcrumbs();
         const moodleCourseId = extractCourseId(node);
-        const rawDate = dateEl ? cleanText(dateEl.textContent) : "";
+
+        const dayContainer = node.closest ? node.closest("[data-region='day'], td.day, .day") : null;
+        const rawDate =
+          (dateEl && cleanText(dateEl.textContent)) ||
+          (dayContainer && (dayContainer.getAttribute("data-day-timestamp") || dayContainer.getAttribute("aria-label") || cleanText(dayContainer.textContent))) ||
+          "";
         const dueDate = parseMoodleDateToISO(rawDate);
 
         if (!dueDate) return;
