@@ -1,6 +1,6 @@
 # Dashboard: wireframe and components
 
-User Story 4.1.1 (AB#19), task 4.1.1.1 (AB#107). Flow: `uml-sprint1/e_dashboard` (process e).
+User Story 4.1.1 (AB#19), task 4.1.1.1 (AB#107); summary widgets: User Story 4.1.3 (AB#21), task AB#53. Flow: `uml-sprint1/e_dashboard` (process e).
 
 ## Wireframe
 
@@ -8,7 +8,7 @@ User Story 4.1.1 (AB#19), task 4.1.1.1 (AB#107). Flow: `uml-sprint1/e_dashboard`
 ┌──────────────────────────────────────────────────────────┐
 │ My tasks                                       Sign out  │  header
 ├──────────────────────────────────────────────────────────┤
-│ [ Due today ] [ This week ] [ Overdue ]                  │  widgets: US 4.1.3 (AB#21), later
+│ [ Overdue ] [ Due today ] [ This week ]                  │  summary widgets: US 4.1.3 (AB#21)
 ├──────────────────────────────────────────────────────────┤
 │ 12 tasks from 4 courses                                  │
 │ ┌──────────────────────────────────────────────┐         │
@@ -38,9 +38,21 @@ Other states replace the list (AB#110):
 App (routes, session)
 ├── /login → LoginPage            placeholder until US 1.1.2 (AB#188)
 └── /      → DashboardPage        loads tasks, picks the state
-             ├── (SummaryWidgets)  US 4.1.3, later
+             ├── SummaryWidgets    US 4.1.3: overdue / due today / this week
              └── TaskCard × n      title, course, deadline, status, AI summary
 ```
+
+## Summary widgets (US 4.1.3, AB#21)
+
+| Widget | Counts | Backend rule (`GET /api/tasks/summary`) |
+|---|---|---|
+| Overdue | open tasks whose deadline has passed | `due < now` |
+| Due today | open tasks due within 24 hours | `now <= due < now + 24 h` |
+| This week | open tasks due within 7 days (the 24-hour ones included) | `now <= due < now + 7 days` |
+
+- The windows run from the moment of the request, not from calendar days.
+- Tasks without a due date, tasks marked done and tasks Gemini filtered out are not counted, so the numbers match the list below.
+- The dashboard loads the summary together with the list. If the summary fails, the widgets show a dash and the list still works; **Retry** reloads both. The numbers are read again on every load, so they change after the next sync.
 
 ## Decisions
 

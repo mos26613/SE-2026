@@ -57,13 +57,13 @@ npm test
 
 | Test | Covers |
 |---|---|
-| `dashboard.test.jsx` | Tasks from all courses shown in API order (AC 1), empty state (AC 2), loading, error + Retry, unreachable server, 401 → sign-in page, token sent to the API |
+| `dashboard.test.jsx` | Summary widgets above the list (AC of 4.1.3: counts from the API, still a list when the summary fails, Retry refreshes both). Tasks from all courses shown in API order (AC 1), empty state (AC 2), loading, error + Retry, unreachable server, 401 → sign-in page, token sent to the API |
+| `summaryWidgets.test.jsx` | Widget counts, 0 vs dash, Overdue highlight, `fetchSummary` request and errors (US 4.1.3) |
 | `taskCard.test.jsx` | Card fields, Israel-time deadline, Moodle link, missing course/deadline, done status, Hebrew titles |
 | `app.test.jsx` | Signed-out → sign-in page, signed-in → dashboard |
 
 ## Not done yet (other stories)
 
-- Summary widgets: today / this week / overdue (US 4.1.3, AB#21). The slot is marked in `DashboardPage.jsx`.
 - Date sections (US 4.2.1, AB#23). The list already comes sorted by deadline from the backend.
 - Load time under 3 s (US 4.1.2, AB#20).
 - Real sign-in, sign-up and password reset (US 1.1.2, AB#188).

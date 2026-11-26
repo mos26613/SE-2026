@@ -40,6 +40,15 @@ button:disabled { opacity: 0.6; cursor: default; }
 .dashboard-header { display: flex; align-items: center; justify-content: space-between; }
 .summary { color: var(--muted); }
 
+.widgets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin: 0.5rem 0 1rem; }
+.widget { display: grid; gap: 0.1rem; padding: 0.9rem 1rem; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.widget-count { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
+.widget-label { font-weight: 600; }
+.widget-hint { color: var(--muted); font-size: 0.85rem; }
+.widget-alert { border-color: var(--danger); }
+.widget-alert .widget-count { color: var(--danger); }
+@media (max-width: 480px) { .widgets { gap: 0.5rem; } .widget { padding: 0.7rem; } .widget-hint { display: none; } }
+
 .status { padding: 2rem; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
 .status.error { color: var(--danger); }
 .status.empty h2 { margin-top: 0; }
