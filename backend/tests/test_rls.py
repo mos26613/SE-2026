@@ -188,7 +188,7 @@ def test_backend_store_with_wrong_user_id_still_sees_only_own_rows(students):
     a, b = students
     store_as_b = SupabaseStore(_app, b.access_token)
     assert store_as_b.list_tasks(a.user_id, include_filtered=True) == []
-    assert store_as_b.existing_ids(a.user_id, [TASK_ID]) == set()
+    assert store_as_b.existing_tasks(a.user_id, [TASK_ID]) == {}
 
 
 def test_api_as_other_student(students):
