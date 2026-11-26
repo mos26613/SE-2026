@@ -21,18 +21,20 @@ from .models import TaskOut
 COLUMNS = [
     "moodle_id", "title", "moodle_course_id", "description", "due_date", "moodle_url",
     "is_relevant", "ai_category", "ai_priority", "ai_summary", "is_modified",
+    "user_notes", "custom_priority", "conflict_detected", "conflict_message",
 ]
 
 # What we read back to tell whether an incoming task changed (see change_detection.py).
 # ai_category tells us whether the AI has already looked at the task. The course name comes
 # from the courses table (added in existing_tasks), like in list_tasks.
-COMPARE_COLUMNS = "moodle_id,title,description,due_date,moodle_url,moodle_course_id,ai_category"
+COMPARE_COLUMNS = "moodle_id,title,description,due_date,moodle_url,moodle_course_id,ai_category,user_notes,custom_priority,conflict_detected,conflict_message"
 
 
 class TaskStore(Protocol):
     def existing_tasks(self, user_id: str, moodle_ids: list[str]) -> dict[str, dict]: ...
     def upsert(self, user_id: str, rows: list[dict]) -> None: ...
     def list_tasks(self, user_id: str, include_filtered: bool) -> list[TaskOut]: ...
+    def update_user_task(self, user_id: str, moodle_id: str, updates: dict) -> Optional[TaskOut]: ...
 
 
 def _sort_key(task: TaskOut):
@@ -52,7 +54,28 @@ class MemoryStore:
         mine = self._data.setdefault(user_id, {})
         for row in rows:
             old = mine.get(row["moodle_id"], {})
-            mine[row["moodle_id"]] = {**old, **row, "status": old.get("status", "open")}
+            # Preserve user notes, custom priority, and status across syncs
+            merged = {**old, **row}
+            if "user_notes" not in row and "user_notes" in old:
+                merged["user_notes"] = old["user_notes"]
+            if "custom_priority" not in row and "custom_priority" in old:
+                merged["custom_priority"] = old["custom_priority"]
+            merged["status"] = old.get("status", "open")
+            mine[row["moodle_id"]] = merged
+
+    def update_user_task(self, user_id: str, moodle_id: str, updates: dict) -> Optional[TaskOut]:
+        mine = self._data.get(user_id, {})
+        if moodle_id not in mine:
+            return None
+        task = mine[moodle_id]
+        if "user_notes" in updates:
+            task["user_notes"] = updates["user_notes"]
+        if "custom_priority" in updates:
+            task["custom_priority"] = updates["custom_priority"]
+        if updates.get("resolve_conflict"):
+            task["conflict_detected"] = False
+            task["conflict_message"] = None
+        return TaskOut(**task)
 
     def list_tasks(self, user_id: str, include_filtered: bool) -> list[TaskOut]:
         tasks = [TaskOut(**row) for row in self._data.get(user_id, {}).values()]
@@ -144,3 +167,25 @@ class SupabaseStore:
             course = row.pop(self._courses, None) or {}
             tasks.append(TaskOut(**row, course_name=course.get("name")))
         return tasks
+
+    def update_user_task(self, user_id: str, moodle_id: str, updates: dict) -> Optional[TaskOut]:
+        patch = {}
+        if "user_notes" in updates:
+            patch["user_notes"] = updates["user_notes"]
+        if "custom_priority" in updates:
+            patch["custom_priority"] = updates["custom_priority"]
+        if updates.get("resolve_conflict"):
+            patch["conflict_detected"] = False
+            patch["conflict_message"] = None
+        if not patch:
+            return None
+        res = (
+            self._client.table(self._table)
+            .update(patch)
+            .eq("user_id", user_id)
+            .eq("moodle_id", moodle_id)
+            .execute()
+        )
+        if not res.data:
+            return None
+        return TaskOut(**res.data[0])

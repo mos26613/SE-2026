@@ -103,6 +103,60 @@ class SyncDiff:
     modified: list[str] = field(default_factory=list)  # saved before, and the details changed
     unchanged: list[str] = field(default_factory=list)  # saved before, identical
     refresh: list[str] = field(default_factory=list)  # unchanged, but a link/course/first description needs saving
+    conflicts: list[str] = field(default_factory=list)  # clash between local edits and remote updates (US 3.3.3)
+
+
+def reconcile_task(stored: dict, incoming: dict) -> tuple[dict, bool, Optional[str]]:
+    """Resolve conflicts when local edits clash with remote Moodle updates (US 3.3.3, AB#418).
+
+    Merge strategy (Acceptance Criteria):
+      1. Given a task with local user edits that conflicts with a remote Moodle update,
+         official Moodle deadlines take precedence while preserving user-added notes.
+      2. User-added notes ('user_notes') and custom user attributes are preserved without data loss.
+      3. If an unresolved clash is detected (e.g. deadline changed on a task where local edits exist,
+         or simultaneous conflicting edits), a notification flag is generated for user review.
+
+    Returns:
+      (merged_row, is_conflict, conflict_message)
+    """
+    merged = dict(incoming)
+
+    # Preserve custom user fields from stored task (AC 1 & AC 3)
+    user_notes = stored.get("user_notes")
+    if user_notes:
+        merged["user_notes"] = user_notes
+
+    custom_priority = stored.get("custom_priority")
+    if custom_priority is not None:
+        merged["custom_priority"] = custom_priority
+
+    has_local_edits = bool(user_notes or custom_priority is not None or stored.get("has_local_edits"))
+
+    # Check for changes in remote Moodle fields
+    changed = changed_fields(stored, incoming)
+
+    is_conflict = False
+    conflict_message = None
+
+    if has_local_edits and changed:
+        # Conflict condition: local edits exist while Moodle modified official data
+        is_conflict = True
+        if "due_date" in changed:
+            # Official Moodle deadline takes precedence (AC 1)
+            old_date = stored.get("due_date")
+            new_date = incoming.get("due_date")
+            conflict_message = f"Moodle updated deadline to {new_date}. Your personal notes have been preserved."
+        else:
+            conflict_message = f"Moodle updated {', '.join(changed)}. Your personal notes have been preserved."
+
+        merged["conflict_detected"] = True
+        merged["conflict_message"] = conflict_message
+    elif stored.get("conflict_detected"):
+        merged["conflict_detected"] = True
+        if stored.get("conflict_message"):
+            merged["conflict_message"] = stored.get("conflict_message")
+
+    return merged, is_conflict, conflict_message
 
 
 def compare_with_stored(stored: dict[str, dict], incoming: list[dict]) -> SyncDiff:
@@ -118,6 +172,8 @@ def compare_with_stored(stored: dict[str, dict], incoming: list[dict]) -> SyncDi
             diff.new.append(moodle_id)
         elif changed_fields(old, row):
             diff.modified.append(moodle_id)
+            if old.get("user_notes") or old.get("custom_priority") is not None or old.get("has_local_edits"):
+                diff.conflicts.append(moodle_id)
         else:
             diff.unchanged.append(moodle_id)
             if refreshed_fields(old, row):

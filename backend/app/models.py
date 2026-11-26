@@ -65,6 +65,18 @@ class TaskOut(BaseModel):
     ai_summary: Optional[str] = None
     status: str = "open"
     is_modified: bool = Field(False, description="The details changed on Moodle after we first saved the task")
+    user_notes: Optional[str] = Field(None, description="Custom student notes preserved across Moodle syncs (US 3.3.3)")
+    custom_priority: Optional[int] = Field(None, ge=1, le=5, description="Custom student priority override")
+    conflict_detected: bool = Field(False, description="Notification flag when local edits clash with Moodle updates")
+    conflict_message: Optional[str] = Field(None, description="Explanation of detected conflict for user review")
+
+
+class TaskUpdateIn(BaseModel):
+    """Update user-managed fields on a task."""
+
+    user_notes: Optional[str] = Field(None, max_length=5000)
+    custom_priority: Optional[int] = Field(None, ge=1, le=5)
+    resolve_conflict: bool = Field(False, description="Clear conflict_detected notification flag")
 
 
 class SyncResponse(BaseModel):
@@ -72,5 +84,6 @@ class SyncResponse(BaseModel):
     created: int
     updated: int = Field(..., description="Saved tasks whose title, description or due date changed on Moodle (flagged as modified)")
     unchanged: int = Field(0, description="Saved tasks that came back identical; not rewritten")
+    conflicts: Optional[int] = Field(None, description="Tasks where local edits clashed with Moodle updates (US 3.3.3)")
     filtered_out: int = Field(..., description="Tasks Gemini marked as not relevant (still saved, hidden by default)")
     ai_applied: bool = Field(..., description="False if Gemini was skipped or failed; tasks were saved anyway")

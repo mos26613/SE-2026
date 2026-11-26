@@ -2,37 +2,87 @@
 const API_BASE_URL = "http://localhost:8000/api";
 const SYNC_THROTTLE_MS = 15 * 60 * 1000; // 15 minutes throttle for passive sync (US 2.2.3)
 
-// Initialize default extension state on installation
+// Initialize default extension state on installation (US 2.2.1 AC 1)
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({
-    syncStatus: "NOT_SYNCED",
-    lastSyncTime: null,
-    lastPassiveRun: 0,
-    jwtToken: null
-  });
+  try {
+    chrome.storage.local.set({
+      syncStatus: "NOT_SYNCED",
+      lastSyncTime: null,
+      lastPassiveRun: 0,
+      jwtToken: null
+    });
+  } catch (err) {
+    console.error("[TaskHub ServiceWorker] Failed to initialize state on install:", err);
+  }
 });
 
-// Listen for messages from content scripts and popup UI (US 2.1.4)
+// Passive Moodle navigation detection via webNavigation (US 2.2.1 AC 1, US 2.2.2)
+if (chrome.webNavigation && chrome.webNavigation.onCompleted) {
+  chrome.webNavigation.onCompleted.addListener((details) => {
+    // Top-level frame navigation only
+    if (details.frameId !== 0) return;
+    try {
+      if (details.url && details.url.includes("moodle")) {
+        console.info("[TaskHub ServiceWorker] Moodle navigation detected:", details.url);
+      }
+    } catch (err) {
+      console.warn("[TaskHub ServiceWorker] WebNavigation error:", err);
+    }
+  }, {
+    url: [{ hostContains: "moodle" }]
+  });
+}
+
+// Listen for messages from content scripts and popup UI (US 2.1.4, US 2.2.1)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "SCRAPED_DATA") {
-    handleScrapedData(message.payload, sender.tab?.url, message.isManual)
-      .then((res) => sendResponse({ success: true, data: res }))
-      .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true;
-  }
+  try {
+    if (!message || typeof message !== "object") {
+      sendResponse({ success: false, error: "Invalid message format" });
+      return false;
+    }
 
-  if (message.type === "MANUAL_SYNC_TRIGGER") {
-    triggerManualSync()
-      .then((res) => sendResponse({ success: true, data: res }))
-      .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true;
-  }
+    if (message.type === "SCRAPED_DATA") {
+      handleScrapedData(message.payload, sender.tab?.url, message.isManual)
+        .then((res) => sendResponse({ success: true, data: res }))
+        .catch((err) => {
+          console.error("[TaskHub ServiceWorker] SCRAPED_DATA error:", err);
+          sendResponse({ success: false, error: err.message });
+        });
+      return true; // Keep message channel open for async response (US 2.1.4 AC 2)
+    }
 
-  if (message.type === "CHECK_SESSION") {
-    checkMoodleSession(message.domain)
-      .then((isValid) => sendResponse({ isValid }))
-      .catch(() => sendResponse({ isValid: false }));
-    return true;
+    if (message.type === "MANUAL_SYNC_TRIGGER") {
+      triggerManualSync()
+        .then((res) => sendResponse({ success: true, data: res }))
+        .catch((err) => {
+          console.error("[TaskHub ServiceWorker] MANUAL_SYNC_TRIGGER error:", err);
+          sendResponse({ success: false, error: err.message });
+        });
+      return true;
+    }
+
+    if (message.type === "CHECK_SESSION") {
+      checkMoodleSession(message.domain)
+        .then((isValid) => sendResponse({ isValid, success: true }))
+        .catch((err) => {
+          console.error("[TaskHub ServiceWorker] CHECK_SESSION error:", err);
+          sendResponse({ isValid: false, success: false, error: err.message });
+        });
+      return true;
+    }
+
+    if (message.type === "GET_SYNC_STATUS") {
+      chrome.storage.local.get(["syncStatus", "lastSyncTime"])
+        .then((data) => sendResponse({ success: true, data }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.error("[TaskHub ServiceWorker] Unhandled message error:", err);
+    sendResponse({ success: false, error: err.message });
+    return false;
   }
 });
 

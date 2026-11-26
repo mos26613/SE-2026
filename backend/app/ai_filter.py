@@ -13,6 +13,7 @@ import time
 
 from pydantic import TypeAdapter, ValidationError
 
+from .anonymizer import Anonymizer
 from .config import Settings
 from .models import AIResult, TaskIn
 
@@ -65,7 +66,15 @@ def classify_tasks(tasks: list[TaskIn], settings: Settings) -> dict[str, AIResul
             api_key=settings.gemini_api_key,
             http_options=types.HttpOptions(timeout=int(settings.gemini_timeout_seconds * 1000)),
         )
-        contents = json.dumps([_task_for_prompt(t) for t in tasks], ensure_ascii=False)
+        anon = Anonymizer()
+        prompt_tasks = []
+        for t in tasks:
+            task_dict = _task_for_prompt(t)
+            task_dict["title"] = anon.anonymize(task_dict["title"]) or ""
+            task_dict["description"] = anon.anonymize(task_dict["description"]) or ""
+            prompt_tasks.append(task_dict)
+
+        contents = json.dumps(prompt_tasks, ensure_ascii=False)
 
         def call(thinking_level: str):
             config = types.GenerateContentConfig(
@@ -97,6 +106,9 @@ def classify_tasks(tasks: list[TaskIn], settings: Settings) -> dict[str, AIResul
             time.sleep(RETRY_DELAY_SECONDS)
             response = call_with_fallback()
         results = _results_adapter.validate_json(response.text or "[]")
+        for r in results:
+            if r.summary:
+                r.summary = anon.restore(r.summary)
     except ValidationError as e:
         log.warning("Gemini returned data in an unexpected shape: %s", e)
         return {}
