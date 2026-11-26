@@ -1,0 +1,6 @@
+# Secret scanner settings (gitleaks). The default rules are on. Add an [allowlist] here only for a
+# value that looks like a secret but is not one, and say why.
+title = "SE-2026 gitleaks config"
+
+[extend]
+useDefault = true
