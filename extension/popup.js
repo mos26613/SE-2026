@@ -35,6 +35,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         statusBadge.classList.add("connected");
         statusText.textContent = "Moodle: מסונכרן";
         break;
+      case "NO_TASKS":
+        statusBadge.classList.add("connected");
+        statusText.textContent = "אין מטלות קרובות";
+        break;
       case "SYNCING":
         statusBadge.classList.add("syncing");
         statusText.textContent = "מסנכרן...";
