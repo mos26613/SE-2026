@@ -37,8 +37,10 @@ def test_dashboard_query_matches_idx_tasks_user_due():
     assert ("order", ("due_date",), {"desc": False, "nullsfirst": False}) in log  # = the B-tree's own order
 
 
-def test_existing_ids_query_is_limited_to_one_student():
+def test_existing_tasks_query_is_limited_to_one_student():
+    # Sync reads the saved version of the whole batch in one query (PR #25). It must stay
+    # on one student's rows so the unique (user_id, moodle_id) index can answer it.
     log = []
-    _store(log).existing_ids("u1", ["a", "b"])
+    _store(log).existing_tasks("u1", ["a", "b"])
     assert ("eq", ("user_id", "u1"), {}) in log
     assert ("in_", ("moodle_id", ["a", "b"]), {}) in log

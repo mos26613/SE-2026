@@ -67,10 +67,10 @@ begin
   report := report || E'\n== Q2 GET /api/tasks?include_filtered=true ==\n';
   for line in execute 'explain (analyze, costs off, summary on) ' || q loop report := report || line || E'\n'; end loop;
 
-  -- Q3: POST /api/tasks/sync, "which of these 50 tasks already exist?"
+  -- Q3: POST /api/tasks/sync, "what is saved for these 50 tasks?" (existing_tasks)
   q := format($q$
     select moodle_id from bench_tasks where user_id = %L and moodle_id = any(%L::text[])$q$, student, ids);
-  report := report || E'\n== Q3 sync: existing_ids (50 ids) ==\n';
+  report := report || E'\n== Q3 sync: existing_tasks (50 ids) ==\n';
   for line in execute 'explain (analyze, costs off, summary on) ' || q loop report := report || line || E'\n'; end loop;
 
   -- 4. Report and roll back everything.
