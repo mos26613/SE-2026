@@ -83,6 +83,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
+  // The background worker fires this when the Moodle login cookie is added or removed (US 2.4.1),
+  // so the badge changes while the popup is open.
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message && message.type === "AUTH_STATE_CHANGED") refreshUI();
+  });
+
   openDashboardBtn.addEventListener("click", () => {
     chrome.tabs.create({ url: DASHBOARD_URL });
   });

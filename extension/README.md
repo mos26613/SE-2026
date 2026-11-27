@@ -11,6 +11,7 @@ Manifest V3 extension that reads the student's assignments from Moodle (read-onl
 | `dom_scraper.js` | The fallback: reads tasks from the page itself (Timeline / Upcoming events blocks, a single activity page). Tested with saved Moodle pages in `tests/fixtures/` |
 | `content.js` | Runs on Moodle pages. Gets the tasks (calendar service first, page scraping as fallback); on ordinary page loads asks Moodle at most once per 15 minutes |
 | `package.json` | Test tooling only (`jsdom` for the fallback tests). The extension itself has no dependencies |
+| `session.js` | Pure helpers: finds the `MoodleSession` cookie, reports whether the student is logged in and when the login expires, and builds the listener for cookie changes. Tested in `tests/` |
 | `background.js` | Checks the Moodle session, sends tasks to the backend, keeps the sync status |
 | `popup.html`, `popup.js` | The popup: status, last sync time, Sync Now, temporary token box |
 
@@ -26,6 +27,23 @@ Why the calendar service is the main source, and the risk that comes with it: [A
 **Load on Moodle (NFR-9):** `content.js` runs on every Moodle page, so on ordinary page loads it asks Moodle at most **once per 15 minutes** (`PASSIVE_FETCH_INTERVAL_MS` in `moodle.js`, time of the last request in `chrome.storage.local` as `lastMoodleFetch`). **Sync Now** always asks, and also starts the 15-minute window, so the page loads right after it don't ask again. When there are no upcoming assignments, Sync Now shows "אין מטלות קרובות" (a normal state, Scenario 1), not an error.
 
 Checked on moodle.jct.ac.il (Nov 2026): the service returned all 24 upcoming events. The JCT dashboard shows a month calendar whose items carry no due time or course, so scraping alone can't produce complete tasks there.
+
+## Moodle login detection (US 2.4.1, AB#482)
+
+The extension needs to know whether the student is logged in to Moodle. `session.js` reads the `MoodleSession` cookie with `chrome.cookies` (on moodle.jct.ac.il the name has a suffix, so it matches by prefix) and `background.js` keeps the result in `chrome.storage.local` as `moodleSession`:
+
+| `state` | Meaning |
+|---|---|
+| `ACTIVE` | The cookie exists and has not expired. `expiresAt` is its expiration date (ISO), or `null` for a cookie that lasts until the browser closes |
+| `MISSING` | No cookie: not logged in |
+| `EXPIRED` | The cookie is there but its expiration date has passed |
+
+When it is read: when the extension is installed, when Chrome starts, before every sync, and **whenever the cookie is added or removed** (`chrome.cookies.onChanged`). Each real change:
+- updates `moodleSession`,
+- sets the popup status to "סשן פג תוקף" (with the "log in to Moodle" alert) when the login is gone, and clears it again after logging in,
+- sends `{ type: "AUTH_STATE_CHANGED", state }` inside the extension; the popup uses it to update while it is open.
+
+Renewing the cookie with the same expiry (the browser reports it as remove + add) is not a change and fires nothing. The Moodle site is `MOODLE_URL` in `background.js`, the same host as `host_permissions` in `manifest.json`.
 
 ## Trying it
 
@@ -45,4 +63,4 @@ npm install
 npm test
 ```
 
-`tests/moodle.test.js` covers the calendar service and the throttle; `tests/dom_scraper.test.js` runs the fallback on the pages in `tests/fixtures/` (Timeline block, Upcoming events block in Hebrew, an assignment page, empty placeholders, and a month calendar without due times like JCT's dashboard). `node_modules/` is ignored by Git; loading the folder unpacked in Chrome works with or without it.
+`tests/moodle.test.js` covers the calendar service and the throttle; `tests/session.test.js` covers the login cookie (active, missing, expired, browser-session cookie, and the add/remove/overwrite events, with a fake `chrome`); `tests/dom_scraper.test.js` runs the fallback on the pages in `tests/fixtures/` (Timeline block, Upcoming events block in Hebrew, an assignment page, empty placeholders, and a month calendar without due times like JCT's dashboard). `node_modules/` is ignored by Git; loading the folder unpacked in Chrome works with or without it.
