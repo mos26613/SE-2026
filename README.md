@@ -151,7 +151,22 @@ docker compose up --build
 | API documentation (Swagger) | http://localhost:8000/docs |
 | Frontend | http://localhost:3000 |
 
-Stop everything with `docker compose down`. The backend reloads automatically when you edit files in `backend/`.
+The first build takes a few minutes. The frontend starts only after the backend answers on `/health`, so give it a few seconds. Without a filled-in `.env` the backend runs in **dev mode** (data kept in memory, no login needed), which is enough to try the API from `/docs`.
+
+The backend reloads automatically when you edit files in `backend/`. The frontend is built into static files, so after you change the code in `frontend/` or a `VITE_*` value in `.env`, run `docker compose up --build` again.
+
+#### Docker commands
+
+| What you want | Command |
+|---|---|
+| Start everything (rebuild if the code or `.env` changed) | `docker compose up --build` |
+| Start in the background | `docker compose up --build -d` |
+| See the backend log | `docker compose logs -f backend` |
+| Run the backend tests inside the container | `docker compose exec backend pytest` |
+| Is everything healthy? | `docker compose ps` (the backend shows `healthy`) |
+| Stop everything | `docker compose down` |
+
+If a port is already in use (8000 or 3000), stop the other program first. An old container from a previous version of the project can hold port 8000: check with `docker ps`, then `docker compose down`.
 
 ### Secrets and environment variables
 

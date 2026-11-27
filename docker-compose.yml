@@ -11,7 +11,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    restart: always
+    restart: unless-stopped
 
   frontend:
     build:
@@ -26,5 +26,6 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - backend
-    restart: always
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
